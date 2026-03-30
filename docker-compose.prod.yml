@@ -1,0 +1,68 @@
+# Production compose — uses prebuilt images from GitHub Container Registry.
+# Only needs this file + .env on your server.
+#
+# Setup:
+#   curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/docker-compose.prod.yml
+#   cat > .env << 'EOF'
+#   ADMIN_PASSWORD=your-secure-password
+#   SECRET_KEY=your-random-secret-key
+#   EOF
+#   docker compose -f docker-compose.prod.yml up -d
+
+configs:
+  dolt_init:
+    content: |
+      CREATE USER IF NOT EXISTS 'bookshelf'@'%' IDENTIFIED WITH mysql_native_password BY 'bookshelf';
+      GRANT ALL PRIVILEGES ON *.* TO 'bookshelf'@'%' WITH GRANT OPTION;
+      FLUSH PRIVILEGES;
+      CREATE DATABASE IF NOT EXISTS bookshelf;
+
+services:
+  doltdb:
+    image: dolthub/dolt-sql-server:latest
+    volumes:
+      - dolt-data:/var/lib/dolt
+    configs:
+      - source: dolt_init
+        target: /docker-entrypoint-initdb.d/init.sql
+    environment:
+      DOLT_ROOT_PASSWORD: bookshelf
+    ports:
+      - "3306"
+    healthcheck:
+      test: ["CMD-SHELL", "dolt sql -q 'SELECT 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/nathaniel-roberts/bookshelf/backend:latest
+    depends_on:
+      doltdb:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: doltdb
+      DATABASE_PORT: "3306"
+      DATABASE_NAME: bookshelf
+      DATABASE_USER: bookshelf
+      DATABASE_PASSWORD: bookshelf
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      LIBRARY_NAME: ${LIBRARY_NAME:-Our Bookshelf}
+    volumes:
+      - covers:/app/covers
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/nathaniel-roberts/bookshelf/frontend:latest
+    ports:
+      - "${HOST_PORT:-8484}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  dolt-data:
+  covers:

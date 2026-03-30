@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database import engine
+from app.init_db import init_db
 from app.routers import auth, books, copies, history, loans, lookup, series, settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
     yield
     await engine.dispose()
 

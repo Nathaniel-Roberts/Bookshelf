@@ -10,19 +10,42 @@ A self-hosted personal book collection manager. Catalog physical books via ISBN 
 - **Version History** — Every change is committed to DoltDB, providing a full audit trail
 - **Catpuccin Mocha Theme** — Dark, minimalist UI designed for mobile-first use
 
-## Quick Start
+## Deploy (no clone needed)
+
+On your server, create a directory and download three files:
 
 ```bash
-# Clone and configure
-git clone <repo-url> && cd Bookshelf
-cp .env.example .env
-# Edit .env — at minimum set ADMIN_PASSWORD
+mkdir bookshelf && cd bookshelf
+
+# Download the required files
+curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/docker-compose.prod.yml
+curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/dolt/init.sql
+curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/nginx/default.conf
+mv default.conf nginx.conf
+
+# Create your .env
+cat > .env << 'EOF'
+ADMIN_PASSWORD=your-secure-password
+SECRET_KEY=your-random-secret-key
+GOOGLE_BOOKS_API_KEY=
+LIBRARY_NAME=Our Bookshelf
+HOST_PORT=80
+EOF
 
 # Launch
-docker compose up -d
+docker compose -f docker-compose.prod.yml up -d
+```
 
-# Open browser
-open http://localhost
+Open `http://your-server` in a browser.
+
+## Quick Start (from source)
+
+```bash
+git clone https://github.com/Nathaniel-Roberts/Bookshelf.git && cd Bookshelf
+cp .env.example .env
+# Edit .env — set ADMIN_PASSWORD and SECRET_KEY
+
+docker compose up -d
 ```
 
 ## Environment Variables
@@ -30,6 +53,7 @@ open http://localhost
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `ADMIN_PASSWORD` | Yes | `changeme` | Password for admin mode |
+| `SECRET_KEY` | Yes | auto-generated | JWT signing key. Set for persistent sessions across restarts |
 | `GOOGLE_BOOKS_API_KEY` | No | — | Enables Google Books as fallback ISBN source |
 | `LIBRARY_NAME` | No | `Our Bookshelf` | Display name for your collection |
 | `HOST_PORT` | No | `80` | Port to expose on the host |
@@ -51,9 +75,10 @@ nginx (port 80) → frontend (React/Vite) + backend (FastAPI)
 ```
 
 - **Frontend:** React 18, Vite, TypeScript, Tailwind CSS, TanStack Query
-- **Backend:** Python FastAPI, SQLAlchemy (async), aiomysql
+- **Backend:** Python FastAPI, SQLAlchemy (async), asyncmy
 - **Database:** DoltDB — MySQL-compatible with built-in version control
 - **Proxy:** Nginx — single entry point, no CORS
+- **Images:** Published to `ghcr.io/nathaniel-roberts/bookshelf` on every push to main
 
 ## Development
 
@@ -79,3 +104,4 @@ The Vite dev server proxies `/api` requests to `localhost:8000`.
 4. Use **Quick Checkout/Return** in Scan mode to manage loans
 5. Browse your collection, filter by genre/series/tags, and view stats on the Dashboard
 6. Check **History** to see a complete audit trail of all changes
+7. **Settings** — backup your library as JSON, configure preferences

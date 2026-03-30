@@ -27,36 +27,22 @@ services:
       DATABASE_USER: bookshelf
       DATABASE_PASSWORD: bookshelf
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      SECRET_KEY: ${SECRET_KEY:-}
       GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
       LIBRARY_NAME: ${LIBRARY_NAME:-Our Bookshelf}
     volumes:
       - covers:/app/covers
-      - backups:/app/backups
-    ports:
-      - "8000"
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_BASE: /api
     ports:
-      - "80"
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - "${HOST_PORT:-80}:80"
+      - "${HOST_PORT:-8484}:80"
     depends_on:
       - backend
-      - frontend
     restart: unless-stopped
 
 volumes:
   dolt-data:
   covers:
-  backups:
