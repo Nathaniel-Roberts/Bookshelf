@@ -25,6 +25,9 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Tunnel compose (contains no secrets but is personal config)
+docker-compose.tunnel.yml
+
 # Docker volumes
 dolt-data/
 covers/
