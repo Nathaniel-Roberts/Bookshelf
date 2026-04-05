@@ -15,12 +15,18 @@ async def _check_cover_url(client: httpx.AsyncClient, url: str) -> str | None:
         resp = await client.get(url, follow_redirects=True)
         final_url = str(resp.url)
         # Google Books redirects to a "nophoto" URL for missing covers
-        if "nophoto" in final_url:
+        if "nophoto" in final_url or "image_not_available" in final_url:
             return None
-        if resp.status_code == 200 and len(resp.content) > 1000:
-            content_type = resp.headers.get("content-type", "")
-            if "image" in content_type:
-                return url
+        if resp.status_code != 200:
+            return None
+        content_type = resp.headers.get("content-type", "")
+        if "image" not in content_type:
+            return None
+        # Google's "image not available" placeholder is a small PNG (~3-5KB)
+        # Real book covers are typically > 10KB
+        if len(resp.content) < 8000:
+            return None
+        return url
     except Exception:
         pass
     return None
@@ -98,13 +104,14 @@ async def _lookup_google(isbn: str) -> dict | None:
             or image_links.get("smallThumbnail")
         )
         if thumbnail:
+            # Force https and clean up the URL
+            thumbnail = thumbnail.replace("http://", "https://").replace("&edge=curl", "")
             # Try zoom=0 first (best quality), validate it's a real image
-            zoom0_url = thumbnail.replace("zoom=1", "zoom=0").replace("&edge=curl", "")
+            zoom0_url = thumbnail.replace("zoom=1", "zoom=0")
             cover_url = await _check_cover_url(client, zoom0_url)
             if not cover_url:
-                # Fall back to original thumbnail URL as-is
-                clean_url = thumbnail.replace("&edge=curl", "")
-                cover_url = await _check_cover_url(client, clean_url)
+                # Fall back to original thumbnail URL
+                cover_url = await _check_cover_url(client, thumbnail)
 
         return {
             "title": info.get("title"),
