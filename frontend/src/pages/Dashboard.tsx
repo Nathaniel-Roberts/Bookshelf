@@ -5,8 +5,10 @@ import { BookOpen, Copy, BookCheck, Users, Library, TrendingUp } from 'lucide-re
 import { fetchBooks } from '../api/books'
 import { fetchActiveLoans } from '../api/loans'
 import { fetchAllSeries } from '../api/series'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function Dashboard() {
+  usePageTitle('Dashboard')
   const { data: books } = useQuery({ queryKey: ['books'], queryFn: () => fetchBooks() })
   const { data: activeLoans } = useQuery({ queryKey: ['loans', 'active'], queryFn: fetchActiveLoans })
   const { data: series } = useQuery({ queryKey: ['series'], queryFn: fetchAllSeries })

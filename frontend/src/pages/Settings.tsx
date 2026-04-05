@@ -5,8 +5,10 @@ import { Settings as SettingsIcon, ShieldAlert, Save, Download } from 'lucide-re
 import { useAuth } from '../hooks/useAuth'
 import { fetchSettings, updateSetting } from '../api/settings'
 import api from '../api/client'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function Settings() {
+  usePageTitle('Settings')
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
 

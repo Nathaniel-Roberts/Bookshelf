@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
@@ -8,8 +8,11 @@ import {
   ChevronDown,
   Heart,
   SlidersHorizontal,
+  ArrowUpNarrowWide,
+  ArrowDownNarrowWide,
 } from 'lucide-react'
 import { fetchBooks, type Book } from '../api/books'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { fetchAllSeries } from '../api/series'
 import BookCard from '../components/BookCard'
 import StarRating from '../components/StarRating'
@@ -17,11 +20,12 @@ import StarRating from '../components/StarRating'
 type ViewMode = 'grid' | 'list'
 type Availability = 'all' | 'available' | 'on_loan'
 type SortField = 'title' | 'authors' | 'created_at' | 'rating'
+type SortOrder = 'asc' | 'desc'
 
 // Debounce hook
 function useDebounce(value: string, delay: number) {
   const [debounced, setDebounced] = useState(value)
-  useMemo(() => {
+  useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay)
     return () => clearTimeout(t)
   }, [value, delay])
@@ -36,9 +40,11 @@ export default function Browse() {
   const [availability, setAvailability] = useState<Availability>('all')
   const [favouritesOnly, setFavouritesOnly] = useState(false)
   const [sort, setSort] = useState<SortField>('title')
+  const [order, setOrder] = useState<SortOrder>('asc')
   const [view, setView] = useState<ViewMode>('grid')
   const [showFilters, setShowFilters] = useState(false)
 
+  usePageTitle('Browse')
   const debouncedSearch = useDebounce(search, 300)
 
   const filterParams = useMemo(() => {
@@ -50,12 +56,14 @@ export default function Browse() {
     if (availability !== 'all') p.availability = availability
     if (favouritesOnly) p.favourites = 'true'
     p.sort = sort
+    p.order = order
     return p
-  }, [debouncedSearch, genre, tag, seriesId, availability, favouritesOnly, sort])
+  }, [debouncedSearch, genre, tag, seriesId, availability, favouritesOnly, sort, order])
 
-  const { data: books, isLoading } = useQuery({
+  const { data: books, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['books', filterParams],
     queryFn: () => fetchBooks(filterParams),
+    placeholderData: (prev) => prev,
   })
 
   const { data: seriesList } = useQuery({
@@ -63,17 +71,23 @@ export default function Browse() {
     queryFn: fetchAllSeries,
   })
 
-  // Derive unique genres and tags from books for filter dropdowns
+  // Fetch all books (unfiltered) to derive complete genre/tag lists
+  const { data: allBooks } = useQuery({
+    queryKey: ['books'],
+    queryFn: () => fetchBooks(),
+  })
+
   const { genres, tags } = useMemo(() => {
-    if (!books) return { genres: [] as string[], tags: [] as string[] }
+    const source = allBooks ?? books
+    if (!source) return { genres: [] as string[], tags: [] as string[] }
     const gs = new Set<string>()
     const ts = new Set<string>()
-    books.forEach((b) => {
+    source.forEach((b) => {
       b.genres?.forEach((g) => gs.add(g))
       b.tags?.forEach((t) => ts.add(t))
     })
     return { genres: [...gs].sort(), tags: [...ts].sort() }
-  }, [books])
+  }, [allBooks, books])
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,6 +179,14 @@ export default function Browse() {
             <option value="rating">Rating</option>
           </Select>
 
+          <button
+            onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
+            className="p-2 rounded-lg bg-surface0 text-subtext0 hover:bg-surface1 hover:text-text transition-colors"
+            title={order === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {order === 'asc' ? <ArrowUpNarrowWide size={16} /> : <ArrowDownNarrowWide size={16} />}
+          </button>
+
           <div className="flex rounded-lg overflow-hidden bg-surface0">
             <button
               onClick={() => setView('grid')}
@@ -192,13 +214,13 @@ export default function Browse() {
           <p className="text-sm mt-1">Try adjusting your filters</p>
         </div>
       ) : view === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
           {books.map((book) => (
             <BookCard key={book.id} book={book} />
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-1">
+        <div className={`flex flex-col gap-1 transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
           {books.map((book) => (
             <BookListRow key={book.id} book={book} />
           ))}

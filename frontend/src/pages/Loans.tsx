@@ -4,10 +4,12 @@ import toast from 'react-hot-toast'
 import { BookCheck, RotateCcw, Clock, History } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchActiveLoans, fetchLoanHistory, returnLoan, type Loan } from '../api/loans'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 type Tab = 'active' | 'history'
 
 export default function Loans() {
+  usePageTitle('Loans')
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('active')

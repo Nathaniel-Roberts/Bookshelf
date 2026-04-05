@@ -55,7 +55,7 @@ export default function Layout() {
       <div className="flex min-h-screen">
         {/* Desktop sidebar */}
         <aside
-          className={`hidden md:flex w-64 flex-col bg-mantle p-4 ${
+          className={`hidden md:flex w-64 flex-col bg-mantle p-4 sticky top-0 h-screen overflow-y-auto ${
             isAdmin ? 'border-l-2 border-mauve' : ''
           }`}
         >

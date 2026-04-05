@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import String as SAString, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,8 +55,9 @@ async def list_books(
     tag: str | None = Query(None),
     series_id: str | None = Query(None),
     is_favourite: bool | None = Query(None),
+    favourites: str | None = Query(None),
     availability: str | None = Query(None, regex="^(all|available|on_loan)$"),
-    sort: str = Query("title", regex="^(title|author|created_at|rating|series)$"),
+    sort: str = Query("title", regex="^(title|authors|author|created_at|rating|series)$"),
     order: str = Query("asc", regex="^(asc|desc)$"),
 ):
     query = select(Book).options(selectinload(Book.series), selectinload(Book.copies).selectinload(Copy.loans))
@@ -64,7 +65,10 @@ async def list_books(
     if search:
         like = f"%{search}%"
         query = query.where(
-            Book.title.ilike(like) | Book.isbn13.ilike(like) | Book.isbn10.ilike(like)
+            Book.title.ilike(like)
+            | Book.isbn13.ilike(like)
+            | Book.isbn10.ilike(like)
+            | func.cast(Book.authors, SAString).ilike(like)
         )
     if genre:
         query = query.where(Book.genres.like(f'%"{genre}"%'))
@@ -74,9 +78,12 @@ async def list_books(
         query = query.where(Book.series_id == series_id)
     if is_favourite is not None:
         query = query.where(Book.is_favourite == is_favourite)
+    if favourites == "true":
+        query = query.where(Book.is_favourite == True)
 
     sort_col = {
         "title": Book.title,
+        "authors": Book.authors,
         "author": Book.authors,
         "created_at": Book.created_at,
         "rating": Book.rating,
@@ -140,8 +147,15 @@ async def create_book(
     book = Book(id=str(uuid.uuid4()), **data.model_dump())
     db.add(book)
     await db.commit()
-    await db.refresh(book)
     await dolt_commit(db, f"Add book: {book.title}")
+
+    # Re-query with relationships loaded
+    result = await db.execute(
+        select(Book)
+        .where(Book.id == book.id)
+        .options(selectinload(Book.series), selectinload(Book.copies))
+    )
+    book = result.scalar_one()
     return _book_to_response(book)
 
 

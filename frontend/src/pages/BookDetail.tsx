@@ -17,6 +17,7 @@ import { fetchCopies, createCopy, getBarcodeUrl, type Copy, type CopyCreate } fr
 import { createLoan, returnLoan, type LoanCreate } from '../api/loans'
 import { fetchAllSeries } from '../api/series'
 import { useAuth } from '../hooks/useAuth'
+import { usePageTitle } from '../hooks/usePageTitle'
 import StarRating from '../components/StarRating'
 
 export default function BookDetail() {
@@ -30,6 +31,8 @@ export default function BookDetail() {
     queryFn: () => fetchBook(id!),
     enabled: !!id,
   })
+
+  usePageTitle(book?.title ?? 'Book')
 
   const { data: copies, isLoading: copiesLoading } = useQuery({
     queryKey: ['copies', id],

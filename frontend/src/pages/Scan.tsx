@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useScanner } from '../hooks/useScanner'
 import { fetchCopyByBarcode } from '../api/copies'
 import { createLoan, returnLoan, fetchBorrowers } from '../api/loans'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 type Mode = 'add' | 'checkout' | 'return'
 
@@ -19,6 +20,7 @@ export default function Scan() {
   const [checkoutBookTitle, setCheckoutBookTitle] = useState('')
   const [borrowerName, setBorrowerName] = useState('')
 
+  usePageTitle('Scan')
   const { data: borrowers } = useQuery({ queryKey: ['borrowers'], queryFn: fetchBorrowers, enabled: isAdmin })
 
   const loanMutation = useMutation({
@@ -140,6 +142,7 @@ export default function Scan() {
         {/* Manual fallback */}
         <div className="flex gap-2">
           <input
+            autoFocus
             placeholder={mode === 'add' ? 'Enter ISBN' : 'Enter barcode'}
             value={manualInput}
             onChange={(e) => setManualInput(e.target.value)}

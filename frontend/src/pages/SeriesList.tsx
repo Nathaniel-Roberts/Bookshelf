@@ -5,8 +5,10 @@ import toast from 'react-hot-toast'
 import { Library, Plus, X, BookOpen } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchAllSeries, createSeries } from '../api/series'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function SeriesList() {
+  usePageTitle('Series')
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)

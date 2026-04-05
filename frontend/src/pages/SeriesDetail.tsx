@@ -6,8 +6,10 @@ import { Library, Pencil, Trash2, Save, X, BookOpen } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchSeries, updateSeries, deleteSeries } from '../api/series'
 import { fetchBooks, type Book } from '../api/books'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function SeriesDetail() {
+  usePageTitle('Series')
   const { id } = useParams<{ id: string }>()
   const { isAdmin } = useAuth()
   const navigate = useNavigate()

@@ -8,6 +8,7 @@ import { useScanner } from '../hooks/useScanner'
 import { lookupIsbn, createBook, type BookCreate } from '../api/books'
 import { fetchAllSeries, createSeries } from '../api/series'
 import { createCopy } from '../api/copies'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 type Tab = 'scan' | 'manual'
 
@@ -16,7 +17,9 @@ export default function AddBook() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
+  const cameFromScan = searchParams.has('isbn')
 
+  usePageTitle('Add Book')
   const [tab, setTab] = useState<Tab>('scan')
   const [isbn, setIsbn] = useState(searchParams.get('isbn') ?? '')
   const [source, setSource] = useState<string | undefined>()
@@ -114,20 +117,23 @@ export default function AddBook() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: createBook,
-    onSuccess: async (book) => {
-      queryClient.invalidateQueries({ queryKey: ['books'] })
-      toast.success('Book saved!')
-      const addCopy = window.confirm('Add first copy?')
-      if (addCopy) {
-        try {
-          await createCopy(book.id, {})
-          toast.success('Copy created!')
-        } catch {
-          toast.error('Failed to create copy.')
-        }
+    mutationFn: async (data: BookCreate) => {
+      const book = await createBook(data)
+      try {
+        await createCopy(book.id, {})
+      } catch {
+        toast.error('Book saved but failed to create copy.')
       }
-      navigate(`/books/${book.id}`)
+      return book
+    },
+    onSuccess: (book) => {
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      toast.success('Book saved with first copy!')
+      if (cameFromScan) {
+        navigate('/scan')
+      } else {
+        navigate(`/books/${book.id}`)
+      }
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.detail ?? 'Failed to save book.'
@@ -433,13 +439,21 @@ export default function AddBook() {
             </div>
           </div>
 
-          <button
-            onClick={() => form && saveMutation.mutate(form)}
-            disabled={!form?.title || saveMutation.isPending}
-            className="w-full py-3 bg-green text-base rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Save size={18} /> Save Book
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => form && saveMutation.mutate(form)}
+              disabled={!form?.title || saveMutation.isPending}
+              className="flex-1 py-3 bg-green text-base rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Save size={18} /> Save Book
+            </button>
+            <button
+              onClick={() => navigate(cameFromScan ? '/scan' : '/')}
+              className="flex-1 py-3 bg-surface1 text-text rounded-lg font-bold flex items-center justify-center gap-2"
+            >
+              <X size={18} /> Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

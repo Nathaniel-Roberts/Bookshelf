@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { GitCommit, Clock, User } from 'lucide-react'
 import { fetchHistory } from '../api/history'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function History() {
+  usePageTitle('History')
   const { data: entries, isLoading } = useQuery({
     queryKey: ['history'],
     queryFn: () => fetchHistory(50),
