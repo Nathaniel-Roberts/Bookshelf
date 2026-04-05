@@ -22,9 +22,9 @@ async def _check_cover_url(client: httpx.AsyncClient, url: str) -> str | None:
         content_type = resp.headers.get("content-type", "")
         if "image" not in content_type:
             return None
-        # Google's "image not available" placeholder is a small PNG (~3-5KB)
-        # Real book covers are typically > 10KB
-        if len(resp.content) < 8000:
+        # Google's "image not available" placeholder is ~9-12KB
+        # Real book covers are always > 20KB
+        if len(resp.content) < 20000:
             return None
         return url
     except Exception:
