@@ -20,6 +20,18 @@ No severity ratings here; ordered by likely value.
 8. **Use the settings you already store** (Effort: Small) — `library_name` and `default_barcode_format` are editable in Settings but ignored everywhere (Layout hardcodes "Bookshelf" at `frontend/src/components/Layout.tsx:959`; `create_copy` ignores the format default). *Wire them up or drop them.*
 9. **CSV export** (Effort: Small) — JSON backup is for machines; a CSV of books is for spreadsheets and insurance lists. *Add a CSV option next to the JSON backup.*
 10. **Collection value stat** (Effort: Small) — `acquisition_price` is captured per copy but never aggregated. *Show total collection value on the Dashboard.*
+11. **Undo via Dolt revert** (Effort: Medium) — DoltDB is the headline feature but the History page is a read-only log. Dolt supports `DOLT_REVERT`, so an "Undo" button per history entry could restore a deleted book or roll back a bad edit. Turns the audit trail into a safety net no other bookshelf app has.
+12. **Batch scan mode** (Effort: Medium) — cataloguing a real shelf means scanning dozens of books, but each scan currently navigates to the Add form and back. A queue mode (scan repeatedly, then review the list and save all) would cut cataloguing time massively; the scanner infrastructure already exists.
+13. **"You already own this" on scan** (Effort: Small) — scanning an owned ISBN runs the full lookup and only fails with a 409 at save time. Check the catalogue first and show "already in your library, 2 copies" with a shortcut to add another copy.
+14. **Borrower pages** (Effort: Medium) — borrowers are just strings on loans, but the data supports a per-person view: current loans, borrowing history, typical loan duration. Useful when someone asks "do I have anything of yours?"
+15. **"Find" mode on the scanner** (Effort: Small) — scan modes are add/checkout/return. A fourth mode that scans a copy barcode and jumps to the book page answers "what is this and where does it live" using the location field already captured.
+16. **Browse by location** (Effort: Medium) — copies have a `location` field but nothing surfaces it. A shelf view (group by location, spot misplaced books) makes the field worth filling in.
+17. **Goodreads/StoryGraph CSV import** (Effort: Medium) — the most common question for any self-hosted library app is how to get existing data in. Both services export CSVs with ISBNs, so the existing lookup pipeline can enrich them on import.
+18. **PWA support** (Effort: Small) — the app is mobile-first and camera-driven but runs in a browser tab. A manifest and service worker make it installable on a phone home screen, full-screen for scanning, with cached assets.
+19. **Series completion tracking** (Effort: Medium) — series and positions are already tracked, so "you own 3 of 7" with gaps highlighted is mostly derivable from existing data; Open Library can supply the total count.
+20. **Author filter in Browse** (Effort: Small) — authors are stored per book but aren't clickable. Genre and tag facets already exist; an author facet completes the set.
+21. **Overdue notifications via webhook** (Effort: Medium) — pairs with due dates (idea 2). For a self-hosted app, a webhook or ntfy.sh ping ("The Hobbit is 2 weeks overdue with Sam") fits the deployment style better than email.
+22. **Tag and genre management** (Effort: Small) — tags accumulate typos and near-duplicates ("sci-fi" vs "scifi"). A settings page to rename or merge them keeps the filters useful as the collection grows.
 
 ---
 
