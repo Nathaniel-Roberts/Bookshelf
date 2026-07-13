@@ -15,6 +15,9 @@ export type DiffRow = Record<string, unknown> & {
 export const fetchHistory = (limit: number = 50) =>
   api.get<HistoryEntry[]>('/history', { params: { limit } }).then((r) => r.data)
 
+export const revertCommit = (commitHash: string) =>
+  api.post(`/history/revert/${commitHash}`).then((r) => r.data)
+
 export const fetchDiffAll = (fromCommit: string, toCommit: string) =>
   api
     .get<Record<string, DiffRow[]>>('/history/diff-all', {

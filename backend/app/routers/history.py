@@ -1,8 +1,14 @@
+import logging
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.deps import require_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -53,6 +59,32 @@ async def get_diff_all(
         if rows:
             out[table] = rows
     return out
+
+
+@router.post("/revert/{commit_hash}")
+async def revert_commit(
+    commit_hash: str,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Undo a commit with DOLT_REVERT — restores deleted rows or rolls back
+    a bad edit as a new commit, keeping the full history intact."""
+    if not re.fullmatch(r"[0-9a-v]{32}", commit_hash):
+        raise HTTPException(status_code=422, detail="Not a valid commit hash")
+
+    try:
+        await db.execute(
+            text("CALL DOLT_REVERT(:hash, '--author', 'bookshelf <bookshelf@local>')"),
+            {"hash": commit_hash},
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.warning("Revert of %s failed: %s", commit_hash, exc)
+        raise HTTPException(
+            status_code=409,
+            detail="Could not revert this commit (it may conflict with later changes)",
+        ) from exc
+    return {"reverted": commit_hash}
 
 
 @router.get("/diff/{table}")

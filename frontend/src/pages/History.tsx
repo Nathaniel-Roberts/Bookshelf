@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { GitCommit, Clock, User, ChevronDown, ChevronRight } from 'lucide-react'
-import { fetchHistory, fetchDiffAll, type DiffRow } from '../api/history'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { GitCommit, Clock, User, ChevronDown, ChevronRight, Undo2 } from 'lucide-react'
+import { fetchHistory, fetchDiffAll, revertCommit, type DiffRow } from '../api/history'
+import { useAuth } from '../hooks/useAuth'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 // Columns in dolt_diff_* rows that aren't table data
@@ -116,10 +118,25 @@ function DiffView({ fromCommit, toCommit }: { fromCommit: string; toCommit: stri
 
 export default function History() {
   usePageTitle('History')
+  const { isAdmin } = useAuth()
+  const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState<string | null>(null)
   const { data: entries, isLoading } = useQuery({
     queryKey: ['history'],
     queryFn: () => fetchHistory(50),
+  })
+
+  const revertMutation = useMutation({
+    mutationFn: revertCommit,
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+      toast.success('Change undone — a revert commit was added.')
+    },
+    onError: (err) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to undo this change.')
+    },
   })
 
   function formatDate(d: string) {
@@ -162,15 +179,30 @@ export default function History() {
                     <User size={12} /> {entry.committer}
                   </p>
 
-                  {parent && (
-                    <button
-                      onClick={() => setExpanded(isExpanded ? null : entry.commit_hash)}
-                      className="flex items-center gap-1 text-xs text-subtext1 hover:text-text pt-1"
-                    >
-                      {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                      {isExpanded ? 'Hide changes' : 'Show changes'}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-3 pt-1">
+                    {parent && (
+                      <button
+                        onClick={() => setExpanded(isExpanded ? null : entry.commit_hash)}
+                        className="flex items-center gap-1 text-xs text-subtext1 hover:text-text"
+                      >
+                        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {isExpanded ? 'Hide changes' : 'Show changes'}
+                      </button>
+                    )}
+                    {isAdmin && parent && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Undo "${entry.message}"?`)) {
+                            revertMutation.mutate(entry.commit_hash)
+                          }
+                        }}
+                        disabled={revertMutation.isPending}
+                        className="flex items-center gap-1 text-xs text-peach hover:text-red disabled:opacity-50"
+                      >
+                        <Undo2 size={12} /> Undo
+                      </button>
+                    )}
+                  </div>
                   {isExpanded && parent && (
                     <DiffView fromCommit={parent.commit_hash} toCommit={entry.commit_hash} />
                   )}
