@@ -10,6 +10,7 @@ SCHEMA_STATEMENTS = [
         id CHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         description TEXT,
+        total_books INT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """,
@@ -98,6 +99,7 @@ SECONDARY_INDEXES = [
 MIGRATED_COLUMNS = [
     ("loans", "due_date", "DATE"),
     ("books", "status", "ENUM('owned', 'want', 'reading', 'read') DEFAULT 'owned'"),
+    ("series", "total_books", "INT"),
 ]
 
 

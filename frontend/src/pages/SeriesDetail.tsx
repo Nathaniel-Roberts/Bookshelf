@@ -16,6 +16,7 @@ export default function SeriesDetail() {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [totalBooks, setTotalBooks] = useState('')
 
   const { data: series, isLoading } = useQuery({
     queryKey: ['series', id],
@@ -38,7 +39,12 @@ export default function SeriesDetail() {
   })
 
   const editMutation = useMutation({
-    mutationFn: () => updateSeries(id!, { name, description: description || undefined }),
+    mutationFn: () =>
+      updateSeries(id!, {
+        name,
+        description: description || undefined,
+        total_books: totalBooks ? Number(totalBooks) : null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['series', id] })
       setEditing(false)
@@ -61,8 +67,20 @@ export default function SeriesDetail() {
     if (!series) return
     setName(series.name)
     setDescription(series.description ?? '')
+    setTotalBooks(series.total_books ? String(series.total_books) : '')
     setEditing(true)
   }
+
+  // Completion: positions owned vs the series total (if set)
+  const ownedPositions = new Set(
+    sortedBooks
+      .map((b: Book) => parseInt(b.series_position ?? '', 10))
+      .filter((n: number) => Number.isFinite(n) && n > 0),
+  )
+  const total = series?.total_books ?? null
+  const missingPositions = total
+    ? Array.from({ length: total }, (_, i) => i + 1).filter((n) => !ownedPositions.has(n))
+    : []
 
   if (isLoading) return <p className="text-subtext0 text-center py-8">Loading...</p>
   if (!series) return <p className="text-red text-center py-8">Series not found.</p>
@@ -104,6 +122,17 @@ export default function SeriesDetail() {
             placeholder="Description"
             className="w-full bg-mantle border border-surface1 text-text rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-mauve"
           />
+          <label className="block">
+            <span className="text-subtext1 text-xs">Books in the complete series (optional)</span>
+            <input
+              type="number"
+              min={1}
+              value={totalBooks}
+              onChange={(e) => setTotalBooks(e.target.value)}
+              placeholder="e.g. 7"
+              className="mt-1 w-full bg-mantle border border-surface1 text-text rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-mauve"
+            />
+          </label>
           <div className="flex gap-2">
             <button onClick={() => editMutation.mutate()} className="px-3 py-2 bg-green text-base rounded-lg font-medium flex items-center gap-1">
               <Save size={14} /> Save
@@ -112,6 +141,36 @@ export default function SeriesDetail() {
               <X size={14} /> Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Completion */}
+      {total && (
+        <div className="bg-surface0 rounded-lg p-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text font-medium">
+              You own {Math.min(ownedPositions.size, total)} of {total}
+            </span>
+            <span className="text-subtext0">
+              {Math.round((Math.min(ownedPositions.size, total) / total) * 100)}%
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-mantle overflow-hidden">
+            <div
+              className="h-full bg-mauve rounded-full transition-all"
+              style={{ width: `${Math.min(100, (ownedPositions.size / total) * 100)}%` }}
+            />
+          </div>
+          {missingPositions.length > 0 && (
+            <p className="text-xs text-subtext0">
+              Missing:{' '}
+              {missingPositions.map((n) => (
+                <span key={n} className="inline-block bg-red/15 text-red rounded px-1.5 py-0.5 mr-1">
+                  #{n}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       )}
 

@@ -4,6 +4,7 @@ export interface Series {
   id: string
   name: string
   description?: string
+  total_books?: number | null
   created_at?: string
   book_count: number
 }
@@ -11,6 +12,7 @@ export interface Series {
 export interface SeriesCreate {
   name: string
   description?: string
+  total_books?: number | null
 }
 
 export const fetchAllSeries = () =>

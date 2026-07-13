@@ -84,7 +84,10 @@ export default function SeriesList() {
               {s.description && <p className="text-subtext0 text-sm mt-0.5">{s.description}</p>}
             </div>
             <span className="flex items-center gap-1 text-subtext1 text-sm">
-              <BookOpen size={14} /> {s.book_count} {s.book_count === 1 ? 'book' : 'books'}
+              <BookOpen size={14} />
+              {s.total_books
+                ? `${s.book_count} of ${s.total_books}`
+                : `${s.book_count} ${s.book_count === 1 ? 'book' : 'books'}`}
             </span>
           </Link>
         ))}

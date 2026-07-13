@@ -19,6 +19,7 @@ def _series_to_response(series: Series, book_count: int = 0) -> SeriesResponse:
         id=series.id,
         name=series.name,
         description=series.description,
+        total_books=series.total_books,
         created_at=series.created_at,
         book_count=book_count,
     )
