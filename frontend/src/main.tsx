@@ -13,6 +13,14 @@ const queryClient = new QueryClient({
   },
 })
 
+// PWA: cache assets and app shell so the scanner works full-screen from a
+// home-screen install (see public/sw.js)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
