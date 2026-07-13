@@ -1,4 +1,0 @@
-CREATE USER IF NOT EXISTS 'bookshelf'@'%' IDENTIFIED WITH mysql_native_password BY 'bookshelf';
-GRANT ALL PRIVILEGES ON *.* TO 'bookshelf'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-CREATE DATABASE IF NOT EXISTS bookshelf;
