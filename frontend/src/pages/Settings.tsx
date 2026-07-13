@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings as SettingsIcon, ShieldAlert, Save, Download } from 'lucide-react'
+import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchSettings, updateSetting } from '../api/settings'
 import api from '../api/client'
@@ -142,6 +142,38 @@ export default function Settings() {
         >
           <Download size={18} /> Download Backup
         </button>
+
+        <p className="text-sm text-subtext0 pt-2">
+          Restore replaces the whole library with the contents of a backup file. The previous
+          state stays visible in History.
+        </p>
+        <label className="w-full py-3 bg-peach text-base rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer">
+          <Upload size={18} /> Restore Backup
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              if (!window.confirm(`Replace the entire library with "${file.name}"?`)) return
+              try {
+                const payload = JSON.parse(await file.text())
+                const { data } = await api.post('/settings/restore', payload)
+                queryClient.invalidateQueries()
+                const r = data.restored
+                toast.success(`Restored ${r.books} books, ${r.copies} copies, ${r.loans} loans.`)
+              } catch (err) {
+                const detail =
+                  (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                toast.error(
+                  detail ?? (err instanceof SyntaxError ? 'Not a valid JSON file.' : 'Restore failed.'),
+                )
+              }
+            }}
+          />
+        </label>
       </div>
     </div>
   )

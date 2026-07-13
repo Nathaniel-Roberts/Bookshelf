@@ -1,10 +1,12 @@
 import json
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -101,3 +103,90 @@ async def create_backup(
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="bookshelf_backup_{timestamp}.json"'},
     )
+
+
+class RestorePayload(BaseModel):
+    exported_at: str | None = None
+    series: list[dict] = []
+    books: list[dict] = []
+    copies: list[dict] = []
+    loans: list[dict] = []
+    settings: list[dict] = []
+
+
+def _row_from_dict(model_cls, row: dict):
+    """Build a model instance from a backup row, coercing ISO strings back
+    to dates/decimals and rejecting unknown fields."""
+    columns = {c.key: c for c in model_cls.__table__.columns}
+    unknown = set(row) - set(columns)
+    if unknown:
+        raise ValueError(f"{model_cls.__tablename__}: unknown fields {sorted(unknown)}")
+
+    data = {}
+    for key, column in columns.items():
+        value = row.get(key)
+        if value is None:
+            continue
+        try:
+            python_type = column.type.python_type
+        except NotImplementedError:  # JSON columns
+            python_type = None
+        if python_type is datetime and isinstance(value, str):
+            value = datetime.fromisoformat(value)
+        elif python_type is date and isinstance(value, str):
+            value = date.fromisoformat(value)
+        elif python_type is Decimal:
+            value = Decimal(str(value))
+        data[key] = value
+    return model_cls(**data)
+
+
+@router.post("/restore")
+async def restore_backup(
+    payload: RestorePayload,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Replace the entire library with the contents of a JSON backup.
+
+    Everything happens in one transaction, and the result is a single Dolt
+    commit — so even a bad restore can be found in History.
+    """
+    try:
+        series = [_row_from_dict(Series, r) for r in payload.series]
+        books = [_row_from_dict(Book, r) for r in payload.books]
+        copies = [_row_from_dict(Copy, r) for r in payload.copies]
+        loans = [_row_from_dict(Loan, r) for r in payload.loans]
+        setting_rows = [
+            _row_from_dict(Setting, r)
+            for r in payload.settings
+            if r.get("key") in ALLOWED_SETTING_KEYS
+        ]
+    except (ValueError, InvalidOperation) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid backup data: {exc}") from exc
+
+    # Delete children before parents, insert parents before children
+    for model_cls in (Loan, Copy, Book, Series, Setting):
+        await db.execute(delete(model_cls))
+    db.add_all([*series, *books, *copies, *loans, *setting_rows])
+
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail="Backup data violates database constraints (missing required fields "
+            "or broken references); nothing was changed",
+        ) from exc
+
+    await dolt_commit(db, f"Restore backup (exported {payload.exported_at or 'unknown'})")
+    return {
+        "restored": {
+            "series": len(series),
+            "books": len(books),
+            "copies": len(copies),
+            "loans": len(loans),
+            "settings": len(setting_rows),
+        }
+    }
