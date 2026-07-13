@@ -10,6 +10,7 @@ from app.database import get_db
 from app.deps import require_admin
 from app.models.book import Book
 from app.models.copy import Copy
+from app.models.loan import Loan
 from app.schemas.book import BookCreate, BookResponse, BookUpdate
 from app.services.dolt import dolt_commit
 
@@ -40,9 +41,30 @@ async def list_books(
     availability: str | None = Query(None, pattern="^(all|available|on_loan)$"),
     sort: str = Query("title", pattern="^(title|authors|author|created_at|rating)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
+    limit: int | None = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
-    query = select(Book).options(
-        selectinload(Book.series), selectinload(Book.copies).selectinload(Copy.loans)
+    # Copy/loan counts as aggregates so we never load every copy and loan
+    # row just to compute availability.
+    copy_counts = (
+        select(Copy.book_id, func.count(Copy.id).label("total"))
+        .group_by(Copy.book_id)
+        .subquery()
+    )
+    loan_counts = (
+        select(Copy.book_id, func.count(Loan.id).label("on_loan"))
+        .join(Loan, (Loan.copy_id == Copy.id) & Loan.returned_date.is_(None))
+        .group_by(Copy.book_id)
+        .subquery()
+    )
+    total_col = func.coalesce(copy_counts.c.total, 0)
+    on_loan_col = func.coalesce(loan_counts.c.on_loan, 0)
+
+    query = (
+        select(Book, total_col, on_loan_col)
+        .outerjoin(copy_counts, copy_counts.c.book_id == Book.id)
+        .outerjoin(loan_counts, loan_counts.c.book_id == Book.id)
+        .options(selectinload(Book.series))
     )
 
     if search:
@@ -61,6 +83,10 @@ async def list_books(
         query = query.where(Book.series_id == series_id)
     if is_favourite is not None:
         query = query.where(Book.is_favourite == is_favourite)
+    if availability == "available":
+        query = query.where(total_col - on_loan_col > 0)
+    elif availability == "on_loan":
+        query = query.where(on_loan_col > 0)
 
     sort_col = {
         "title": Book.title,
@@ -71,25 +97,35 @@ async def list_books(
     }[sort]
     query = query.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
 
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+    elif offset:
+        query = query.offset(offset)
+
     result = await db.execute(query)
-    books = result.scalars().unique().all()
+    return [
+        _book_to_response(book, total, total - on_loan)
+        for book, total, on_loan in result.unique().all()
+    ]
 
-    responses = []
-    for book in books:
-        total = len(book.copies)
-        on_loan = sum(
-            1 for c in book.copies if any(loan.returned_date is None for loan in c.loans)
-        )
-        available = total - on_loan
 
-        if availability == "available" and available == 0:
-            continue
-        if availability == "on_loan" and on_loan == 0:
-            continue
-
-        responses.append(_book_to_response(book, total, available))
-
-    return responses
+@router.get("/facets")
+async def book_facets(db: AsyncSession = Depends(get_db)):
+    """Distinct genres, tags and authors for filter dropdowns — one narrow
+    scan instead of shipping the whole collection to the client."""
+    result = await db.execute(select(Book.genres, Book.tags, Book.authors))
+    genres: set[str] = set()
+    tags: set[str] = set()
+    authors: set[str] = set()
+    for row_genres, row_tags, row_authors in result.all():
+        genres.update(row_genres or [])
+        tags.update(row_tags or [])
+        authors.update(row_authors or [])
+    return {
+        "genres": sorted(genres),
+        "tags": sorted(tags),
+        "authors": sorted(authors),
+    }
 
 
 @router.get("/{book_id}", response_model=BookResponse)

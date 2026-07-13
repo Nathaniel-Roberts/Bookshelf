@@ -53,6 +53,19 @@ class StubClient:
     async def __aexit__(self, *exc):
         return False
 
+    def stream(self, method, url, **kwargs):
+        client = self
+
+        class _StreamCM:
+            async def __aenter__(self):
+                self._resp = await client.get(url, **kwargs)
+                return self._resp
+
+            async def __aexit__(self, *exc):
+                return False
+
+        return _StreamCM()
+
     async def get(self, url, **kwargs):
         request = httpx.Request("GET", url)
         if "openlibrary.org/isbn" in url:

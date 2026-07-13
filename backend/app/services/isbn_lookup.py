@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import httpx
@@ -9,24 +10,35 @@ def _normalize_isbn(isbn: str) -> str:
     return re.sub(r"[^0-9X]", "", isbn.upper())
 
 
+# Google's "image not available" placeholder is ~9-12KB; real covers are
+# always larger.
+_MIN_COVER_BYTES = 20000
+
+
 async def _check_cover_url(client: httpx.AsyncClient, url: str) -> str | None:
-    """Verify a cover URL returns an actual image (not a placeholder)."""
+    """Verify a cover URL returns an actual image (not a placeholder).
+
+    Streams the response so we can stop as soon as the size threshold is
+    reached instead of downloading the whole image.
+    """
     try:
-        resp = await client.get(url, follow_redirects=True)
-        final_url = str(resp.url)
-        # Google Books redirects to a "nophoto" URL for missing covers
-        if "nophoto" in final_url or "image_not_available" in final_url:
-            return None
-        if resp.status_code != 200:
-            return None
-        content_type = resp.headers.get("content-type", "")
-        if "image" not in content_type:
-            return None
-        # Google's "image not available" placeholder is ~9-12KB
-        # Real book covers are always > 20KB
-        if len(resp.content) < 20000:
-            return None
-        return url
+        async with client.stream("GET", url, follow_redirects=True) as resp:
+            final_url = str(resp.url)
+            # Google Books redirects to a "nophoto" URL for missing covers
+            if "nophoto" in final_url or "image_not_available" in final_url:
+                return None
+            if resp.status_code != 200:
+                return None
+            if "image" not in resp.headers.get("content-type", ""):
+                return None
+            content_length = resp.headers.get("content-length")
+            if content_length is not None:
+                return url if int(content_length) >= _MIN_COVER_BYTES else None
+            size = 0
+            async for chunk in resp.aiter_bytes(8192):
+                size += len(chunk)
+                if size >= _MIN_COVER_BYTES:
+                    return url
     except Exception:
         pass
     return None
@@ -39,19 +51,20 @@ async def _lookup_openlibrary(isbn: str) -> dict | None:
             return None
         data = resp.json()
 
-        # Resolve author names
-        authors = []
-        for author_ref in data.get("authors", []):
-            key = author_ref.get("key", "")
-            if key:
-                author_resp = await client.get(f"https://openlibrary.org{key}.json")
-                if author_resp.status_code == 200:
-                    authors.append(author_resp.json().get("name", "Unknown"))
-
-        # Check cover — OL returns a tiny 1x1 gif for missing covers
-        cover_url = await _check_cover_url(
-            client, f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg"
+        # Resolve author names concurrently, along with the cover check
+        author_keys = [ref.get("key", "") for ref in data.get("authors", []) if ref.get("key")]
+        author_responses, cover_url = await asyncio.gather(
+            asyncio.gather(
+                *(client.get(f"https://openlibrary.org{key}.json") for key in author_keys)
+            ),
+            # OL returns a tiny 1x1 gif for missing covers
+            _check_cover_url(client, f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg"),
         )
+        authors = [
+            resp.json().get("name", "Unknown")
+            for resp in author_responses
+            if resp.status_code == 200
+        ]
 
         return {
             "title": data.get("title"),

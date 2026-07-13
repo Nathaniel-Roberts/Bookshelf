@@ -84,11 +84,33 @@ SCHEMA_STATEMENTS = [
 ]
 
 
+# (name, table, column) — MySQL has no CREATE INDEX IF NOT EXISTS, so
+# existence is checked via information_schema first.
+SECONDARY_INDEXES = [
+    ("idx_loans_returned_date", "loans", "returned_date"),
+    ("idx_books_title", "books", "title"),
+]
+
+
+async def _ensure_indexes(conn):
+    for name, table, column in SECONDARY_INDEXES:
+        result = await conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.statistics "
+                "WHERE table_schema = DATABASE() AND table_name = :table AND index_name = :name"
+            ),
+            {"table": table, "name": name},
+        )
+        if result.scalar() == 0:
+            await conn.execute(text(f"CREATE INDEX {name} ON {table} ({column})"))
+
+
 async def init_db():
     """Create tables if they don't exist. Safe to run on every startup."""
     async with engine.begin() as conn:
         for statement in SCHEMA_STATEMENTS:
             await conn.execute(text(statement))
+        await _ensure_indexes(conn)
         # Dolt commit the schema
         await conn.execute(text("CALL DOLT_ADD('-A')"))
         try:
