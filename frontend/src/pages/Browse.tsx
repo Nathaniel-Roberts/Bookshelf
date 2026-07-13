@@ -11,7 +11,7 @@ import {
   ArrowUpNarrowWide,
   ArrowDownNarrowWide,
 } from 'lucide-react'
-import { fetchBooks, fetchFacets, type Book } from '../api/books'
+import { fetchBooks, fetchFacets, BOOK_STATUS_LABELS, type Book, type BookStatus } from '../api/books'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { fetchAllSeries } from '../api/series'
 import BookCard from '../components/BookCard'
@@ -37,6 +37,7 @@ export default function Browse() {
   const [genre, setGenre] = useState('')
   const [tag, setTag] = useState('')
   const [author, setAuthor] = useState('')
+  const [status, setStatus] = useState('')
   const [seriesId, setSeriesId] = useState('')
   const [availability, setAvailability] = useState<Availability>('all')
   const [favouritesOnly, setFavouritesOnly] = useState(false)
@@ -54,13 +55,14 @@ export default function Browse() {
     if (genre) p.genre = genre
     if (tag) p.tag = tag
     if (author) p.author = author
+    if (status) p.status = status
     if (seriesId) p.series_id = seriesId
     if (availability !== 'all') p.availability = availability
     if (favouritesOnly) p.is_favourite = 'true'
     p.sort = sort
     p.order = order
     return p
-  }, [debouncedSearch, genre, tag, author, seriesId, availability, favouritesOnly, sort, order])
+  }, [debouncedSearch, genre, tag, author, status, seriesId, availability, favouritesOnly, sort, order])
 
   const { data: books, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['books', filterParams],
@@ -132,6 +134,14 @@ export default function Browse() {
             {authors.map((a) => (
               <option key={a} value={a}>
                 {a}
+              </option>
+            ))}
+          </Select>
+
+          <Select value={status} onChange={setStatus} placeholder="Status">
+            {(Object.keys(BOOK_STATUS_LABELS) as BookStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {BOOK_STATUS_LABELS[s]}
               </option>
             ))}
           </Select>

@@ -29,6 +29,7 @@ class Book(Base):
     series_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("series.id", ondelete="SET NULL"))
     series_position: Mapped[str | None] = mapped_column(String(10))
     tags: Mapped[list | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(Enum("owned", "want", "reading", "read"), default="owned")
     is_favourite: Mapped[bool] = mapped_column(Boolean, default=False)
     rating: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)

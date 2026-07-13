@@ -12,7 +12,15 @@ import {
   MapPin,
   Undo2,
 } from 'lucide-react'
-import { fetchBook, updateBook, deleteBook, type Book, type BookCreate } from '../api/books'
+import {
+  fetchBook,
+  updateBook,
+  deleteBook,
+  BOOK_STATUS_LABELS,
+  type Book,
+  type BookCreate,
+  type BookStatus,
+} from '../api/books'
 import { fetchCopies, createCopy, getBarcodeUrl, type Copy, type CopyCreate } from '../api/copies'
 import { createLoan, returnLoan, type LoanCreate } from '../api/loans'
 import { fetchAllSeries } from '../api/series'
@@ -123,6 +131,26 @@ export default function BookDetail() {
             editable={isAdmin}
             onChange={(r) => editMut.mutate({ rating: r })}
           />
+
+          {/* Reading status */}
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(BOOK_STATUS_LABELS) as BookStatus[])
+              .filter((s) => isAdmin || s === book.status)
+              .map((s) => (
+                <button
+                  key={s}
+                  disabled={!isAdmin || editMut.isPending}
+                  onClick={() => s !== book.status && editMut.mutate({ status: s })}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    book.status === s
+                      ? 'bg-mauve text-crust'
+                      : 'bg-surface0 text-subtext0 hover:bg-surface1'
+                  } ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                >
+                  {BOOK_STATUS_LABELS[s]}
+                </button>
+              ))}
+          </div>
 
           {/* Metadata grid */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mt-2">

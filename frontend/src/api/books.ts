@@ -1,5 +1,14 @@
 import api from './client'
 
+export type BookStatus = 'owned' | 'want' | 'reading' | 'read'
+
+export const BOOK_STATUS_LABELS: Record<BookStatus, string> = {
+  owned: 'Owned',
+  want: 'Wishlist',
+  reading: 'Reading',
+  read: 'Read',
+}
+
 export interface Book {
   id: string
   isbn13?: string
@@ -18,6 +27,7 @@ export interface Book {
   series_id?: string
   series_position?: string
   tags?: string[]
+  status: BookStatus
   is_favourite: boolean
   rating?: number
   notes?: string
@@ -45,6 +55,7 @@ export interface BookCreate {
   series_id?: string
   series_position?: string
   tags?: string[]
+  status?: BookStatus
   is_favourite?: boolean
   rating?: number
   notes?: string

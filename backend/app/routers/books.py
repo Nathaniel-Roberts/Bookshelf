@@ -40,6 +40,7 @@ async def list_books(
     tag: str | None = Query(None),
     author: str | None = Query(None),
     series_id: str | None = Query(None),
+    status: str | None = Query(None, pattern="^(owned|want|reading|read)$"),
     is_favourite: bool | None = Query(None),
     availability: str | None = Query(None, pattern="^(all|available|on_loan)$"),
     sort: str = Query("title", pattern="^(title|authors|author|created_at|rating)$"),
@@ -88,6 +89,8 @@ async def list_books(
         )
     if series_id:
         query = query.where(Book.series_id == series_id)
+    if status:
+        query = query.where(Book.status == status)
     if is_favourite is not None:
         query = query.where(Book.is_favourite == is_favourite)
     if availability == "available":

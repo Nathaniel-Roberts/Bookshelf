@@ -75,6 +75,30 @@ async def test_empty_strings_coerced_to_null(client, admin_headers):
     assert resp.status_code == 201
 
 
+async def test_reading_status(client, admin_headers, sample_book):
+    # Default is owned
+    assert sample_book["status"] == "owned"
+
+    # Update to reading, filter by status
+    resp = await client.put(
+        f"/api/books/{sample_book['id']}", json={"status": "reading"}, headers=admin_headers
+    )
+    assert resp.json()["status"] == "reading"
+
+    resp = await client.get("/api/books", params={"status": "reading"})
+    assert [b["title"] for b in resp.json()] == ["The Hobbit"]
+    resp = await client.get("/api/books", params={"status": "want"})
+    assert resp.json() == []
+
+    # Invalid status rejected on write and filter
+    resp = await client.put(
+        f"/api/books/{sample_book['id']}", json={"status": "lost"}, headers=admin_headers
+    )
+    assert resp.status_code == 422
+    resp = await client.get("/api/books", params={"status": "lost"})
+    assert resp.status_code == 422
+
+
 async def test_lookup_by_isbn(client, admin_headers, sample_book):
     # Exact, hyphenated, and 404 cases
     resp = await client.get("/api/books/by-isbn/9780261103283")

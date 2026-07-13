@@ -73,6 +73,7 @@ class BookCreate(_BookValidators):
     series_id: str | None = None
     series_position: str | None = None
     tags: list[str] | None = None
+    status: Literal["owned", "want", "reading", "read"] = "owned"
     is_favourite: bool = False
     rating: int | None = Field(None, ge=1, le=5)
     notes: str | None = None
@@ -82,6 +83,11 @@ class BookCreate(_BookValidators):
     @classmethod
     def _default_metadata_source(cls, v):
         return v or "manual"
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _default_status(cls, v):
+        return v or "owned"
 
 
 class BookUpdate(_BookValidators):
@@ -100,6 +106,7 @@ class BookUpdate(_BookValidators):
     series_id: str | None = None
     series_position: str | None = None
     tags: list[str] | None = None
+    status: Literal["owned", "want", "reading", "read"] | None = None
     is_favourite: bool | None = None
     rating: int | None = Field(None, ge=1, le=5)
     notes: str | None = None
@@ -123,6 +130,7 @@ class BookResponse(BaseModel):
     series_id: str | None = None
     series_position: str | None = None
     tags: list[str] | None = None
+    status: str = "owned"
     is_favourite: bool = False
     rating: int | None = None
     notes: str | None = None

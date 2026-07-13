@@ -17,6 +17,7 @@ const emptyForm = (): BookCreate => ({
   authors: [],
   genres: [],
   tags: [],
+  status: 'owned',
   metadata_source: 'manual',
 })
 

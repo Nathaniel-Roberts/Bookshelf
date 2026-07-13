@@ -32,6 +32,7 @@ SCHEMA_STATEMENTS = [
         series_id CHAR(36),
         series_position VARCHAR(10),
         tags JSON,
+        status ENUM('owned', 'want', 'reading', 'read') DEFAULT 'owned',
         is_favourite BOOLEAN DEFAULT FALSE,
         rating TINYINT,
         notes TEXT,
@@ -96,6 +97,7 @@ SECONDARY_INDEXES = [
 # shipped; applied to existing databases via information_schema check.
 MIGRATED_COLUMNS = [
     ("loans", "due_date", "DATE"),
+    ("books", "status", "ENUM('owned', 'want', 'reading', 'read') DEFAULT 'owned'"),
 ]
 
 
