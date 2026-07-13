@@ -1,6 +1,7 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
 
 from app.config import settings
 
@@ -17,9 +18,9 @@ def verify_token(token: str) -> bool:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         return payload.get("role") == "admin"
-    except JWTError:
+    except jwt.InvalidTokenError:
         return False
 
 
 def verify_password(password: str) -> bool:
-    return password == settings.admin_password
+    return secrets.compare_digest(password.encode(), settings.admin_password.encode())

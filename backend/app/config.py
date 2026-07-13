@@ -34,3 +34,11 @@ if not settings.secret_key or settings.secret_key == _INSECURE_DEFAULT:
         file=sys.stderr,
     )
     settings.secret_key = secrets.token_urlsafe(32)
+
+if not settings.admin_password or settings.admin_password == "changeme":
+    print(
+        "WARNING: ADMIN_PASSWORD is not set (or still 'changeme'). "
+        "Anyone who can reach this server can log in as admin. "
+        "Set ADMIN_PASSWORD in your .env.",
+        file=sys.stderr,
+    )
