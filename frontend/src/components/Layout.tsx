@@ -12,6 +12,7 @@ import {
   Unlock,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useLibraryName } from '../hooks/usePageTitle'
 import LoginModal from './LoginModal'
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
 
 export default function Layout() {
   const { isAdmin, login, logout } = useAuth()
+  const libraryName = useLibraryName()
   const [showLogin, setShowLogin] = useState(false)
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin)
@@ -59,7 +61,7 @@ export default function Layout() {
             isAdmin ? 'border-l-2 border-mauve' : ''
           }`}
         >
-          <h1 className="mb-6 px-3 text-xl font-bold text-text">Bookshelf</h1>
+          <h1 className="mb-6 px-3 text-xl font-bold text-text">{libraryName}</h1>
 
           <nav className="flex flex-1 flex-col gap-1">
             {visibleItems.map((item) => (

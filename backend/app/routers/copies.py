@@ -10,6 +10,7 @@ from app.database import get_db
 from app.deps import require_admin
 from app.models.book import Book
 from app.models.copy import Copy
+from app.models.setting import Setting
 from app.schemas.copy import CopyCreate, CopyResponse, CopyUpdate
 from app.services.barcode import generate_code128_svg, generate_qr_png
 from app.services.dolt import dolt_commit
@@ -78,11 +79,18 @@ async def create_copy(
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
+    payload = data.model_dump(exclude_unset=True)
+    if "barcode_format" not in payload:
+        result = await db.execute(select(Setting).where(Setting.key == "default_barcode_format"))
+        setting = result.scalar_one_or_none()
+        if setting and setting.value in ("code128", "qr"):
+            payload["barcode_format"] = setting.value
+
     copy = Copy(
         id=str(uuid.uuid4()),
         book_id=book_id,
         barcode=f"BKSHF-{_short_id()}",
-        **data.model_dump(),
+        **payload,
     )
     db.add(copy)
     await db.commit()

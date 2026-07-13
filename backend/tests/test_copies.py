@@ -35,6 +35,22 @@ async def test_copy_lifecycle(client, admin_headers, sample_book, sample_copy):
     assert resp.status_code == 404
 
 
+async def test_copy_uses_default_barcode_format_setting(client, admin_headers, sample_book):
+    await client.put(
+        "/api/settings/default_barcode_format", json={"value": "qr"}, headers=admin_headers
+    )
+    resp = await client.post(f"/api/copies/book/{sample_book['id']}", json={}, headers=admin_headers)
+    assert resp.json()["barcode_format"] == "qr"
+
+    # Explicit format still wins
+    resp = await client.post(
+        f"/api/copies/book/{sample_book['id']}",
+        json={"barcode_format": "code128"},
+        headers=admin_headers,
+    )
+    assert resp.json()["barcode_format"] == "code128"
+
+
 async def test_copy_for_missing_book_404(client, admin_headers):
     resp = await client.post("/api/copies/book/nope", json={}, headers=admin_headers)
     assert resp.status_code == 404
