@@ -96,3 +96,8 @@ export interface BookStats {
 }
 
 export const fetchStats = () => api.get<BookStats>('/books/stats').then((r) => r.data)
+
+export const renameTerm = (field: 'tags' | 'genres', oldTerm: string, newTerm: string | null) =>
+  api
+    .post<{ updated: number }>('/books/terms/rename', { field, old: oldTerm, new: newTerm })
+    .then((r) => r.data)

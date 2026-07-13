@@ -74,6 +74,46 @@ async def test_stats_collection_value(client, admin_headers, sample_book):
     assert resp.json() == {"total_value": 19.75, "priced_copies": 2}
 
 
+async def test_rename_merge_and_delete_terms(client, admin_headers, library):
+    # Rename Fantasy -> Fantasy Fiction on both books that carry it
+    resp = await client.post(
+        "/api/books/terms/rename",
+        json={"field": "genres", "old": "Fantasy", "new": "Fantasy Fiction"},
+        headers=admin_headers,
+    )
+    assert resp.json() == {"updated": 2}
+    facets = (await client.get("/api/books/facets")).json()
+    assert "Fantasy" not in facets["genres"]
+    assert "Fantasy Fiction" in facets["genres"]
+
+    # Merging onto an existing term collapses duplicates
+    resp = await client.post(
+        "/api/books/terms/rename",
+        json={"field": "genres", "old": "Sci-Fi", "new": "Fantasy Fiction"},
+        headers=admin_headers,
+    )
+    assert resp.json() == {"updated": 1}
+    books = (await client.get("/api/books", params={"genre": "Fantasy Fiction"})).json()
+    assert all(b["genres"].count("Fantasy Fiction") == 1 for b in books)
+
+    # Deleting a tag removes it everywhere
+    resp = await client.post(
+        "/api/books/terms/rename",
+        json={"field": "tags", "old": "own", "new": None},
+        headers=admin_headers,
+    )
+    assert resp.json() == {"updated": 1}
+    facets = (await client.get("/api/books/facets")).json()
+    assert "own" not in facets["tags"]
+
+
+async def test_rename_term_requires_admin(client):
+    resp = await client.post(
+        "/api/books/terms/rename", json={"field": "tags", "old": "x", "new": "y"}
+    )
+    assert resp.status_code in (401, 403)
+
+
 async def test_author_filter(client, library):
     resp = await client.get("/api/books", params={"author": "Alice Author"})
     assert sorted(b["title"] for b in resp.json()) == ["Available Book", "Copyless Book"]

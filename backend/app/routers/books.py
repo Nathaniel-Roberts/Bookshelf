@@ -1,7 +1,9 @@
 import re
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import String as SAString
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,6 +138,45 @@ async def book_facets(db: AsyncSession = Depends(get_db)):
         "tags": sorted(tags),
         "authors": sorted(authors),
     }
+
+
+class TermRename(BaseModel):
+    field: Literal["tags", "genres"]
+    old: str = Field(min_length=1)
+    new: str | None = None  # None removes the term
+
+
+@router.post("/terms/rename")
+async def rename_term(
+    payload: TermRename,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Rename, merge, or delete a tag/genre across the whole collection.
+    Renaming onto an existing term merges them (duplicates collapse)."""
+    new = payload.new.strip() if payload.new else None
+    if new == payload.old:
+        return {"updated": 0}
+
+    result = await db.execute(select(Book))
+    updated = 0
+    for book in result.scalars().all():
+        values = getattr(book, payload.field) or []
+        if payload.old not in values:
+            continue
+        replaced = [new if v == payload.old else v for v in values if not (v == payload.old and not new)]
+        deduped = list(dict.fromkeys(replaced))
+        setattr(book, payload.field, deduped)
+        updated += 1
+
+    if updated:
+        await db.commit()
+        term = payload.field[:-1]
+        message = (
+            f"Rename {term} '{payload.old}' to '{new}'" if new else f"Remove {term} '{payload.old}'"
+        )
+        await dolt_commit(db, message)
+    return {"updated": updated}
 
 
 @router.get("/by-isbn/{isbn}", response_model=BookResponse)

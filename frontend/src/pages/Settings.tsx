@@ -2,11 +2,84 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload, FileSpreadsheet, Tags } from 'lucide-react'
+import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload, FileSpreadsheet, Tags, Pencil, X } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchSettings, updateSetting } from '../api/settings'
+import { fetchFacets, renameTerm } from '../api/books'
 import api from '../api/client'
 import { usePageTitle } from '../hooks/usePageTitle'
+
+function TermManager() {
+  const queryClient = useQueryClient()
+  const { data: facets } = useQuery({ queryKey: ['facets'], queryFn: fetchFacets })
+
+  const mutation = useMutation({
+    mutationFn: ({ field, old, next }: { field: 'tags' | 'genres'; old: string; next: string | null }) =>
+      renameTerm(field, old, next),
+    onSuccess: ({ updated }, { old, next }) => {
+      queryClient.invalidateQueries({ queryKey: ['facets'] })
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      toast.success(
+        next ? `Renamed "${old}" to "${next}" on ${updated} books.` : `Removed "${old}" from ${updated} books.`,
+      )
+    },
+    onError: () => toast.error('Failed to update.'),
+  })
+
+  const termRow = (field: 'tags' | 'genres') => (term: string) => (
+    <div key={term} className="flex items-center gap-2 bg-mantle rounded-lg px-3 py-1.5">
+      <span className="flex-1 text-sm text-text truncate">{term}</span>
+      <button
+        onClick={() => {
+          const next = window.prompt(`Rename "${term}" to (existing names merge):`, term)
+          if (next && next.trim() && next.trim() !== term) {
+            mutation.mutate({ field, old: term, next: next.trim() })
+          }
+        }}
+        disabled={mutation.isPending}
+        className="text-subtext0 hover:text-text disabled:opacity-50"
+        title="Rename or merge"
+      >
+        <Pencil size={13} />
+      </button>
+      <button
+        onClick={() => {
+          if (window.confirm(`Remove "${term}" from all books?`)) {
+            mutation.mutate({ field, old: term, next: null })
+          }
+        }}
+        disabled={mutation.isPending}
+        className="text-subtext0 hover:text-red disabled:opacity-50"
+        title="Remove from all books"
+      >
+        <X size={13} />
+      </button>
+    </div>
+  )
+
+  if (!facets || (facets.tags.length === 0 && facets.genres.length === 0)) return null
+
+  return (
+    <div className="bg-surface0 rounded-lg p-4 space-y-4">
+      <h2 className="text-lg font-semibold text-text">Tags &amp; Genres</h2>
+      <p className="text-sm text-subtext0">
+        Rename fixes typos; renaming to an existing name merges the two.
+      </p>
+      {facets.tags.length > 0 && (
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-semibold text-subtext1 uppercase tracking-wide">Tags</h3>
+          {facets.tags.map(termRow('tags'))}
+        </div>
+      )}
+      {facets.genres.length > 0 && (
+        <div className="space-y-1.5">
+          <h3 className="text-xs font-semibold text-subtext1 uppercase tracking-wide">Genres</h3>
+          {facets.genres.map(termRow('genres'))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 async function downloadFrom(path: string, fallbackName: string, successMessage: string) {
   try {
@@ -134,6 +207,9 @@ export default function Settings() {
           <Save size={18} /> Save Settings
         </button>
       </div>
+
+      {/* Tags & genres */}
+      <TermManager />
 
       {/* Tools */}
       <div className="bg-surface0 rounded-lg p-4 space-y-3">
