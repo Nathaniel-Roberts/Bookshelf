@@ -75,3 +75,10 @@ export interface BookFacets {
 }
 
 export const fetchFacets = () => api.get<BookFacets>('/books/facets').then((r) => r.data)
+
+export interface BookStats {
+  total_value: number
+  priced_copies: number
+}
+
+export const fetchStats = () => api.get<BookStats>('/books/stats').then((r) => r.data)

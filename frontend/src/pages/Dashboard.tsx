@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Link } from 'react-router-dom'
-import { BookOpen, Copy, BookCheck, Users, Library, TrendingUp, AlarmClock } from 'lucide-react'
-import { fetchBooks } from '../api/books'
+import { BookOpen, Copy, BookCheck, Users, Library, TrendingUp, AlarmClock, DollarSign } from 'lucide-react'
+import { fetchBooks, fetchStats } from '../api/books'
 import { fetchActiveLoans } from '../api/loans'
 import { fetchAllSeries } from '../api/series'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -12,6 +12,7 @@ export default function Dashboard() {
   const { data: books } = useQuery({ queryKey: ['books'], queryFn: () => fetchBooks() })
   const { data: activeLoans } = useQuery({ queryKey: ['loans', 'active'], queryFn: fetchActiveLoans })
   const { data: series } = useQuery({ queryKey: ['series'], queryFn: fetchAllSeries })
+  const { data: bookStats } = useQuery({ queryKey: ['book-stats'], queryFn: fetchStats })
 
   const totalBooks = books?.length ?? 0
   const totalCopies = books?.reduce((sum, b) => sum + b.copy_count, 0) ?? 0
@@ -48,6 +49,19 @@ export default function Dashboard() {
       : []),
     { label: 'Authors', value: uniqueAuthors, icon: Users, color: 'text-mauve' },
     { label: 'Series', value: totalSeries, icon: Library, color: 'text-yellow' },
+    ...(bookStats && bookStats.total_value > 0
+      ? [
+          {
+            label: 'Value',
+            value: `$${bookStats.total_value.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`,
+            icon: DollarSign,
+            color: 'text-teal',
+          },
+        ]
+      : []),
   ]
 
   return (

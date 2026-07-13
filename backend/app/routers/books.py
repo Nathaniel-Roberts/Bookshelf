@@ -129,6 +129,19 @@ async def book_facets(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/stats")
+async def book_stats(db: AsyncSession = Depends(get_db)):
+    total_value = (
+        await db.execute(select(func.coalesce(func.sum(Copy.acquisition_price), 0)))
+    ).scalar()
+    priced_copies = (
+        await db.execute(
+            select(func.count(Copy.id)).where(Copy.acquisition_price.is_not(None))
+        )
+    ).scalar()
+    return {"total_value": float(total_value or 0), "priced_copies": priced_copies}
+
+
 @router.get("/{book_id}", response_model=BookResponse)
 async def get_book(book_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(

@@ -59,6 +59,21 @@ async def test_pagination(client, library):
     assert [b["title"] for b in resp.json()] == ["Loaned Book"]
 
 
+async def test_stats_collection_value(client, admin_headers, sample_book):
+    resp = await client.get("/api/books/stats")
+    assert resp.json() == {"total_value": 0.0, "priced_copies": 0}
+
+    for price in ("12.50", "7.25", None):
+        await client.post(
+            f"/api/copies/book/{sample_book['id']}",
+            json={"acquisition_price": price},
+            headers=admin_headers,
+        )
+
+    resp = await client.get("/api/books/stats")
+    assert resp.json() == {"total_value": 19.75, "priced_copies": 2}
+
+
 async def test_facets(client, library):
     resp = await client.get("/api/books/facets")
     assert resp.status_code == 200
