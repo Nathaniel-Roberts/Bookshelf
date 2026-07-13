@@ -246,6 +246,43 @@ export default function Settings() {
       {/* Tags & genres */}
       <TermManager />
 
+      {/* Import */}
+      <div className="bg-surface0 rounded-lg p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-text">Import</h2>
+        <p className="text-sm text-subtext0">
+          Import a Goodreads or StoryGraph library export (CSV). Duplicates are skipped; covers
+          and metadata are fetched in the background.
+        </p>
+        <label className="w-full py-3 bg-sapphire text-base rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer">
+          <Upload size={18} /> Import CSV
+          <input
+            type="file"
+            accept="text/csv,.csv"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              try {
+                const form = new FormData()
+                form.append('file', file)
+                const { data } = await api.post('/books/import-csv?enrich=true', form)
+                queryClient.invalidateQueries()
+                toast.success(
+                  `Imported ${data.imported} books (${data.skipped} duplicates skipped).` +
+                    (data.enriching ? ' Fetching covers in the background.' : ''),
+                  { duration: 6000 },
+                )
+              } catch (err) {
+                const detail =
+                  (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                toast.error(detail ?? 'Import failed.')
+              }
+            }}
+          />
+        </label>
+      </div>
+
       {/* Tools */}
       <div className="bg-surface0 rounded-lg p-4 space-y-3">
         <h2 className="text-lg font-semibold text-text">Tools</h2>

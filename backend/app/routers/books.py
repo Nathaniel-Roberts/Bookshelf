@@ -2,7 +2,7 @@ import re
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import String as SAString
 from sqlalchemy import func, select
@@ -17,6 +17,7 @@ from app.models.loan import Loan
 from app.schemas.book import BookCreate, BookResponse, BookUpdate
 from app.services.covers import cache_cover, delete_cached_cover
 from app.services.dolt import dolt_commit
+from app.services.import_csv import enrich_imported_books, parse_import_csv
 
 router = APIRouter()
 
@@ -138,6 +139,64 @@ async def book_facets(db: AsyncSession = Depends(get_db)):
         "tags": sorted(tags),
         "authors": sorted(authors),
     }
+
+
+@router.post("/import-csv")
+async def import_csv(
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    enrich: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Import a Goodreads or StoryGraph library export. Books are created
+    immediately; with enrich=true, metadata and covers are filled in by a
+    background task via the normal ISBN lookup pipeline."""
+    text = (await file.read()).decode("utf-8-sig", errors="replace")
+    try:
+        rows = parse_import_csv(text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    existing = await db.execute(select(Book.isbn13, Book.isbn10, Book.title, Book.authors))
+    seen_isbns: set[str] = set()
+    seen_title_author: set[tuple[str, str]] = set()
+    for isbn13, isbn10, title, authors in existing.all():
+        if isbn13:
+            seen_isbns.add(isbn13)
+        if isbn10:
+            seen_isbns.add(isbn10)
+        seen_title_author.add((title.lower(), (authors or [""])[0].lower()))
+
+    created: list[tuple[str, str]] = []  # (book_id, isbn) for enrichment
+    skipped = 0
+    for row in rows:
+        key = (row["title"].lower(), (row["authors"] or [""])[0].lower())
+        if (
+            (row["isbn13"] and row["isbn13"] in seen_isbns)
+            or (row["isbn10"] and row["isbn10"] in seen_isbns)
+            or key in seen_title_author
+        ):
+            skipped += 1
+            continue
+        book = Book(id=str(uuid.uuid4()), **row)
+        db.add(book)
+        for isbn in (row["isbn13"], row["isbn10"]):
+            if isbn:
+                seen_isbns.add(isbn)
+        seen_title_author.add(key)
+        isbn_for_lookup = row["isbn13"] or row["isbn10"]
+        if isbn_for_lookup:
+            created.append((book.id, isbn_for_lookup))
+
+    imported = len(rows) - skipped
+    if imported:
+        await db.commit()
+        await dolt_commit(db, f"Import {imported} books from CSV")
+        if enrich and created:
+            background_tasks.add_task(enrich_imported_books, created)
+
+    return {"imported": imported, "skipped": skipped, "enriching": enrich and len(created) or 0}
 
 
 class TermRename(BaseModel):
