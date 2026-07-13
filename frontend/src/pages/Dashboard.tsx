@@ -110,8 +110,8 @@ export default function Dashboard() {
               to={`/books/${book.id}`}
               className="flex items-center gap-3 hover:bg-surface1 rounded-lg p-2 transition-colors"
             >
-              {book.cover_url ? (
-                <img src={book.cover_url} alt="" className="w-8 h-12 object-cover rounded" />
+              {book.cover_local || book.cover_url ? (
+                <img src={book.cover_local || book.cover_url} alt="" className="w-8 h-12 object-cover rounded" />
               ) : (
                 <div className="w-8 h-12 bg-mantle rounded flex items-center justify-center">
                   <BookOpen size={14} className="text-overlay0" />

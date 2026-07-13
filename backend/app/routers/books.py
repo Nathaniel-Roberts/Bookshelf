@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import String as SAString
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from app.models.book import Book
 from app.models.copy import Copy
 from app.models.loan import Loan
 from app.schemas.book import BookCreate, BookResponse, BookUpdate
+from app.services.covers import cache_cover, delete_cached_cover
 from app.services.dolt import dolt_commit
 
 router = APIRouter()
@@ -147,6 +148,7 @@ async def get_book(book_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=BookResponse, status_code=201)
 async def create_book(
     data: BookCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
@@ -165,6 +167,9 @@ async def create_book(
     await db.commit()
     await dolt_commit(db, f"Add book: {book.title}")
 
+    if book.cover_url:
+        background_tasks.add_task(cache_cover, book.id, book.cover_url)
+
     # Re-query with relationships loaded
     result = await db.execute(
         select(Book)
@@ -179,6 +184,7 @@ async def create_book(
 async def update_book(
     book_id: str,
     data: BookUpdate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
@@ -188,6 +194,16 @@ async def update_book(
         raise HTTPException(status_code=404, detail="Book not found")
 
     updates = data.model_dump(exclude_unset=True)
+
+    # Re-cache the cover when the URL changes; drop the stale cache when it
+    # is cleared.
+    new_cover_url = updates.get("cover_url")
+    cover_changed = "cover_url" in updates and updates["cover_url"] != book.cover_url
+    if cover_changed:
+        delete_cached_cover(book_id)
+        updates["cover_local"] = None
+        if new_cover_url:
+            background_tasks.add_task(cache_cover, book_id, new_cover_url)
 
     # Same duplicate-ISBN guard as create; without it the unique constraint
     # surfaces as an unhandled 500.
@@ -221,3 +237,4 @@ async def delete_book(
     await db.delete(book)
     await db.commit()
     await dolt_commit(db, f"Delete book: {title}")
+    delete_cached_cover(book_id)

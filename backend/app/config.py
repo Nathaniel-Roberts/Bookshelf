@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     secret_key: str = _INSECURE_DEFAULT
     google_books_api_key: str = ""
     library_name: str = "Our Bookshelf"
+    covers_dir: str = "covers"  # /app/covers in the container (volume-backed)
 
     @property
     def database_url(self) -> str:

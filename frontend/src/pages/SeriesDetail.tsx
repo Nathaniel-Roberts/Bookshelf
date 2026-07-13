@@ -123,8 +123,8 @@ export default function SeriesDetail() {
             to={`/books/${book.id}`}
             className="flex items-center gap-3 bg-surface0 hover:bg-surface1 rounded-lg p-3 transition-colors"
           >
-            {book.cover_url ? (
-              <img src={book.cover_url} alt="" className="w-10 h-14 object-cover rounded" />
+            {book.cover_local || book.cover_url ? (
+              <img src={book.cover_local || book.cover_url} alt="" className="w-10 h-14 object-cover rounded" />
             ) : (
               <div className="w-10 h-14 bg-mantle rounded flex items-center justify-center">
                 <BookOpen size={16} className="text-overlay0" />

@@ -2,10 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.database import engine
 from app.init_db import init_db
 from app.routers import auth, books, copies, history, loans, lookup, series, settings
+from app.services.covers import covers_path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +32,9 @@ app.include_router(loans.router, prefix="/api/loans", tags=["loans"])
 app.include_router(lookup.router, prefix="/api/lookup", tags=["lookup"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])
+
+# Locally cached cover images (see app/services/covers.py)
+app.mount("/api/covers", StaticFiles(directory=covers_path()), name="covers")
 
 
 @app.get("/api/health")
