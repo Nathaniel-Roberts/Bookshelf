@@ -1,13 +1,13 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.deps import get_db_session, require_admin
-from app.models.book import Book
+from app.database import get_db
+from app.deps import require_admin
 from app.models.copy import Copy
 from app.models.loan import Loan
 from app.schemas.loan import LoanCreate, LoanResponse
@@ -31,28 +31,28 @@ def _loan_to_response(loan: Loan) -> LoanResponse:
 
 
 @router.get("", response_model=list[LoanResponse])
-async def list_active_loans(db: AsyncSession = Depends(get_db_session)):
+async def list_active_loans(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Loan)
         .where(Loan.returned_date.is_(None))
         .options(selectinload(Loan.copy).selectinload(Copy.book))
         .order_by(Loan.borrowed_date.desc())
     )
-    return [_loan_to_response(l) for l in result.scalars().all()]
+    return [_loan_to_response(loan) for loan in result.scalars().all()]
 
 
 @router.get("/history", response_model=list[LoanResponse])
-async def loan_history(db: AsyncSession = Depends(get_db_session)):
+async def loan_history(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Loan)
         .options(selectinload(Loan.copy).selectinload(Copy.book))
         .order_by(Loan.borrowed_date.desc())
     )
-    return [_loan_to_response(l) for l in result.scalars().all()]
+    return [_loan_to_response(loan) for loan in result.scalars().all()]
 
 
 @router.get("/borrowers", response_model=list[str])
-async def list_borrowers(db: AsyncSession = Depends(get_db_session)):
+async def list_borrowers(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Loan.borrower_name).distinct().order_by(Loan.borrower_name))
     return [row[0] for row in result.all()]
 
@@ -61,7 +61,7 @@ async def list_borrowers(db: AsyncSession = Depends(get_db_session)):
 async def create_loan(
     copy_id: str,
     data: LoanCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     result = await db.execute(
@@ -72,7 +72,7 @@ async def create_loan(
         raise HTTPException(status_code=404, detail="Copy not found")
 
     # Check if already on loan
-    if any(l.returned_date is None for l in copy.loans):
+    if any(loan.returned_date is None for loan in copy.loans):
         raise HTTPException(status_code=400, detail="Copy is already on loan")
 
     loan = Loan(
@@ -97,7 +97,7 @@ async def create_loan(
 @router.put("/{loan_id}/return", response_model=LoanResponse)
 async def return_loan(
     loan_id: str,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     result = await db.execute(

@@ -1,18 +1,9 @@
-from collections.abc import AsyncGenerator
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import verify_token
-from app.database import get_db
 
 bearer_scheme = HTTPBearer(auto_error=False)
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession]:
-    async for session in get_db():
-        yield session
 
 
 async def require_admin(

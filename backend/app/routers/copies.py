@@ -6,10 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.deps import get_db_session, require_admin
+from app.database import get_db
+from app.deps import require_admin
 from app.models.book import Book
 from app.models.copy import Copy
-from app.models.loan import Loan
 from app.schemas.copy import CopyCreate, CopyResponse, CopyUpdate
 from app.services.barcode import generate_code128_svg, generate_qr_png
 from app.services.dolt import dolt_commit
@@ -22,7 +22,7 @@ def _short_id() -> str:
 
 
 def _copy_to_response(copy: Copy) -> CopyResponse:
-    active_loan = next((l for l in copy.loans if l.returned_date is None), None)
+    active_loan = next((loan for loan in copy.loans if loan.returned_date is None), None)
     return CopyResponse(
         id=copy.id,
         book_id=copy.book_id,
@@ -43,7 +43,7 @@ def _copy_to_response(copy: Copy) -> CopyResponse:
 
 
 @router.get("/by-barcode/{barcode}", response_model=CopyResponse)
-async def get_copy_by_barcode(barcode: str, db: AsyncSession = Depends(get_db_session)):
+async def get_copy_by_barcode(barcode: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Copy)
         .where(Copy.barcode == barcode)
@@ -56,7 +56,7 @@ async def get_copy_by_barcode(barcode: str, db: AsyncSession = Depends(get_db_se
 
 
 @router.get("/book/{book_id}", response_model=list[CopyResponse])
-async def list_copies_for_book(book_id: str, db: AsyncSession = Depends(get_db_session)):
+async def list_copies_for_book(book_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Copy)
         .where(Copy.book_id == book_id)
@@ -70,7 +70,7 @@ async def list_copies_for_book(book_id: str, db: AsyncSession = Depends(get_db_s
 async def create_copy(
     book_id: str,
     data: CopyCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     # Verify book exists
@@ -99,7 +99,7 @@ async def create_copy(
 async def update_copy(
     copy_id: str,
     data: CopyUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     result = await db.execute(
@@ -121,7 +121,7 @@ async def update_copy(
 @router.delete("/{copy_id}", status_code=204)
 async def delete_copy(
     copy_id: str,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     result = await db.execute(select(Copy).where(Copy.id == copy_id))
@@ -138,8 +138,8 @@ async def delete_copy(
 @router.get("/{copy_id}/barcode")
 async def get_barcode(
     copy_id: str,
-    format: str = Query("code128", regex="^(code128|qr)$"),
-    db: AsyncSession = Depends(get_db_session),
+    format: str = Query("code128", pattern="^(code128|qr)$"),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Copy).where(Copy.id == copy_id))
     copy = result.scalar_one_or_none()

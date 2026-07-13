@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,6 +6,11 @@ from fastapi import FastAPI
 from app.database import engine
 from app.init_db import init_db
 from app.routers import auth, books, copies, history, loans, lookup, series, settings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 
 @asynccontextmanager

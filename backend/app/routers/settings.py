@@ -1,13 +1,14 @@
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_db_session, require_admin
+from app.database import get_db
+from app.deps import require_admin
 from app.models.book import Book
 from app.models.copy import Copy
 from app.models.loan import Loan
@@ -18,9 +19,17 @@ from app.services.dolt import dolt_commit
 
 router = APIRouter()
 
+# Keys the app actually reads; anything else is rejected to keep the
+# settings table from accumulating junk rows.
+ALLOWED_SETTING_KEYS = {
+    "library_name",
+    "prefer_google_books",
+    "default_barcode_format",
+}
+
 
 @router.get("", response_model=list[SettingResponse])
-async def list_settings(db: AsyncSession = Depends(get_db_session)):
+async def list_settings(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Setting).order_by(Setting.key))
     return [SettingResponse.model_validate(s) for s in result.scalars().all()]
 
@@ -29,9 +38,12 @@ async def list_settings(db: AsyncSession = Depends(get_db_session)):
 async def update_setting(
     key: str,
     data: SettingUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
+    if key not in ALLOWED_SETTING_KEYS:
+        raise HTTPException(status_code=422, detail=f"Unknown setting: {key}")
+
     result = await db.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
     if not setting:
@@ -63,7 +75,7 @@ def _row_to_dict(row) -> dict:
 
 @router.post("/backup")
 async def create_backup(
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     series = (await db.execute(select(Series))).scalars().all()
@@ -73,7 +85,7 @@ async def create_backup(
     settings = (await db.execute(select(Setting))).scalars().all()
 
     backup = {
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "series": [_row_to_dict(r) for r in series],
         "books": [_row_to_dict(r) for r in books],
         "copies": [_row_to_dict(r) for r in copies],
@@ -82,7 +94,7 @@ async def create_backup(
     }
 
     content = json.dumps(backup, indent=2, default=str)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     return Response(
         content=content,

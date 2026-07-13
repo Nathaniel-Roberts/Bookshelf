@@ -1,5 +1,9 @@
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 
 async def dolt_commit(session: AsyncSession, message: str) -> str | None:
@@ -12,6 +16,10 @@ async def dolt_commit(session: AsyncSession, message: str) -> str | None:
         )
         row = result.fetchone()
         return row[0] if row else None
-    except Exception:
-        # If there are no changes to commit, Dolt raises an error
+    except Exception as exc:
+        # Dolt raises when there is nothing to commit; that's expected on
+        # no-op updates. Anything else is a broken audit trail — log it.
+        if "nothing to commit" in str(exc).lower():
+            return None
+        logger.error("Dolt commit failed for %r: %s", message, exc)
         return None

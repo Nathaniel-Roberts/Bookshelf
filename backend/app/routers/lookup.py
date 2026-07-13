@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_db_session, require_admin
+from app.database import get_db
+from app.deps import require_admin
 from app.models.setting import Setting
 from app.services.isbn_lookup import lookup_isbn
 
@@ -13,7 +14,7 @@ router = APIRouter()
 async def isbn_lookup(
     isbn: str,
     source: str | None = None,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
     # If no explicit source, check DB setting
@@ -25,5 +26,5 @@ async def isbn_lookup(
 
     data = await lookup_isbn(isbn, preferred_source=source)
     if not data:
-        return {"error": "No results found", "isbn": isbn}
+        raise HTTPException(status_code=404, detail=f"No results found for ISBN {isbn}")
     return data

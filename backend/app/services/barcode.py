@@ -1,9 +1,9 @@
 import io
 
 import barcode
-from barcode.writer import SVGWriter
 import qrcode
 import qrcode.constants
+from barcode.writer import SVGWriter
 
 
 def generate_code128_svg(data: str) -> bytes:

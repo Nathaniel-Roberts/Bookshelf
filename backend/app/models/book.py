@@ -1,8 +1,8 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import datetime
 
 
 class Base(DeclarativeBase):
