@@ -1,25 +1,115 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { ScanBarcode, BookPlus, LogOut, LogIn, ShieldAlert, Camera, Hand, Search } from 'lucide-react'
+import {
+  ScanBarcode,
+  BookPlus,
+  LogOut,
+  LogIn,
+  ShieldAlert,
+  Camera,
+  Hand,
+  Search,
+  Layers,
+  X,
+  Save,
+  Loader2,
+} from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
-import { fetchCopyByBarcode } from '../api/copies'
+import { fetchCopyByBarcode, createCopy } from '../api/copies'
 import { createLoan, returnByBarcode, fetchBorrowers } from '../api/loans'
+import { lookupIsbn, createBook, fetchBookByIsbn, type BookCreate } from '../api/books'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 type Mode = 'add' | 'checkout' | 'return' | 'find'
 
+interface BatchItem {
+  isbn: string
+  status: 'looking' | 'ready' | 'owned' | 'error' | 'saving' | 'saved'
+  title?: string
+  data?: BookCreate
+  message?: string
+}
+
 export default function Scan() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [mode, setMode] = useState<Mode>('add')
   const [manualInput, setManualInput] = useState('')
   const [checkoutCopyId, setCheckoutCopyId] = useState<string | null>(null)
   const [checkoutBookTitle, setCheckoutBookTitle] = useState('')
   const [borrowerName, setBorrowerName] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [batchMode, setBatchMode] = useState(false)
+  const [batch, setBatch] = useState<BatchItem[]>([])
+  const [savingBatch, setSavingBatch] = useState(false)
+  // Ref mirror so the scanner callback sees the latest queue for dedupe
+  const batchRef = useRef<BatchItem[]>([])
+  useEffect(() => {
+    batchRef.current = batch
+  }, [batch])
+
+  const updateBatchItem = (isbn: string, patch: Partial<BatchItem>) => {
+    setBatch((prev) => prev.map((item) => (item.isbn === isbn ? { ...item, ...patch } : item)))
+  }
+
+  const enqueueBatchScan = useCallback(
+    async (code: string) => {
+      const isbn = code.trim().replace(/[-\s]/g, '')
+      if (!isbn) return
+      if (batchRef.current.some((item) => item.isbn === isbn)) {
+        toast('Already in the queue.', { icon: 'ℹ️' })
+        return
+      }
+      setBatch((prev) => [...prev, { isbn, status: 'looking' }])
+      try {
+        const owned = await fetchBookByIsbn(isbn)
+        updateBatchItem(isbn, { status: 'owned', title: owned.title })
+        return
+      } catch {
+        // not owned — look up metadata
+      }
+      try {
+        const data = await lookupIsbn(isbn)
+        updateBatchItem(isbn, { status: 'ready', title: data.title, data })
+      } catch (err) {
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        updateBatchItem(isbn, { status: 'error', message: detail ?? 'Lookup failed' })
+      }
+    },
+    [],
+  )
+
+  async function saveBatch() {
+    setSavingBatch(true)
+    let saved = 0
+    for (const item of batchRef.current) {
+      if (item.status !== 'ready' || !item.data) continue
+      updateBatchItem(item.isbn, { status: 'saving' })
+      try {
+        const book = await createBook(item.data)
+        try {
+          await createCopy(book.id, {})
+        } catch {
+          // book saved without its first copy; still counts as saved
+        }
+        updateBatchItem(item.isbn, { status: 'saved' })
+        saved++
+      } catch (err) {
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        updateBatchItem(item.isbn, { status: 'error', message: detail ?? 'Save failed' })
+      }
+    }
+    setSavingBatch(false)
+    queryClient.invalidateQueries({ queryKey: ['books'] })
+    queryClient.invalidateQueries({ queryKey: ['facets'] })
+    toast.success(`Saved ${saved} book${saved === 1 ? '' : 's'}.`)
+  }
 
   usePageTitle('Scan')
   const { data: borrowers } = useQuery({ queryKey: ['borrowers'], queryFn: fetchBorrowers, enabled: isAdmin })
@@ -49,7 +139,11 @@ export default function Scan() {
   const handleScan = useCallback(
     async (code: string) => {
       if (mode === 'add') {
-        navigate(`/books/add?isbn=${encodeURIComponent(code)}`)
+        if (batchMode) {
+          enqueueBatchScan(code)
+        } else {
+          navigate(`/books/add?isbn=${encodeURIComponent(code)}`)
+        }
         return
       }
 
@@ -76,7 +170,7 @@ export default function Scan() {
         toast.error('Copy not found for this barcode.')
       }
     },
-    [mode, navigate, returnMutation],
+    [mode, batchMode, enqueueBatchScan, navigate, returnMutation],
   )
 
   const { elementId, isScanning, error: scanError, start, stop } = useScanner({ onScan: handleScan })
@@ -125,6 +219,19 @@ export default function Scan() {
         </button>
       </div>
 
+      {/* Batch toggle — cataloguing a whole shelf without leaving the page */}
+      {mode === 'add' && (
+        <button
+          onClick={() => setBatchMode(!batchMode)}
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm w-fit ${
+            batchMode ? 'bg-mauve/20 text-mauve' : 'bg-surface0 text-subtext0 hover:text-text'
+          }`}
+        >
+          <Layers size={14} />
+          Batch mode {batchMode ? 'on — scans queue up here' : 'off'}
+        </button>
+      )}
+
       {/* Scanner area */}
       <div className="flex-1 flex flex-col gap-4">
         <div
@@ -158,6 +265,66 @@ export default function Scan() {
             <Hand size={16} /> Go
           </button>
         </div>
+
+        {/* Batch queue */}
+        {mode === 'add' && batchMode && batch.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-subtext1">
+                Queue ({batch.filter((i) => i.status === 'ready').length} ready of {batch.length})
+              </h2>
+              <button
+                onClick={() => setBatch([])}
+                disabled={savingBatch}
+                className="text-xs text-subtext0 hover:text-text disabled:opacity-50"
+              >
+                Clear
+              </button>
+            </div>
+            {batch.map((item) => (
+              <div key={item.isbn} className="flex items-center gap-2 bg-surface0 rounded-lg p-2.5">
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    {
+                      looking: 'bg-surface1 text-subtext0',
+                      ready: 'bg-green/15 text-green',
+                      owned: 'bg-blue/15 text-blue',
+                      error: 'bg-red/15 text-red',
+                      saving: 'bg-yellow/15 text-yellow',
+                      saved: 'bg-green/15 text-green',
+                    }[item.status]
+                  }`}
+                >
+                  {item.status === 'looking' ? '…' : item.status}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-text truncate">{item.title ?? item.isbn}</p>
+                  <p className="text-xs text-overlay1 font-mono">
+                    {item.isbn}
+                    {item.message ? ` — ${item.message}` : ''}
+                  </p>
+                </div>
+                {item.status !== 'saving' && item.status !== 'saved' && (
+                  <button
+                    onClick={() => setBatch((prev) => prev.filter((i) => i.isbn !== item.isbn))}
+                    disabled={savingBatch}
+                    className="text-overlay0 hover:text-text shrink-0 disabled:opacity-50"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={saveBatch}
+              disabled={savingBatch || !batch.some((i) => i.status === 'ready')}
+              className="w-full py-3 bg-green text-base rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {savingBatch ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save All ({batch.filter((i) => i.status === 'ready').length})
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Checkout modal */}
