@@ -6,6 +6,9 @@ from app.database import get_db
 
 router = APIRouter()
 
+# Tables with dolt_diff_* system tables; validated to prevent SQL injection
+DIFFABLE_TABLES = ("books", "copies", "loans", "series", "settings")
+
 
 @router.get("")
 async def get_history(
@@ -27,6 +30,31 @@ async def get_history(
     ]
 
 
+async def _table_diff(db: AsyncSession, table: str, from_commit: str, to_commit: str) -> list[dict]:
+    result = await db.execute(
+        text(f"SELECT * FROM dolt_diff_{table} WHERE from_commit = :from_c AND to_commit = :to_c"),
+        {"from_c": from_commit, "to_c": to_commit},
+    )
+    columns = list(result.keys())
+    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+
+
+@router.get("/diff-all")
+async def get_diff_all(
+    from_commit: str = Query(...),
+    to_commit: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Diffs for every table between two commits, keyed by table name.
+    Tables without changes are omitted."""
+    out = {}
+    for table in DIFFABLE_TABLES:
+        rows = await _table_diff(db, table, from_commit, to_commit)
+        if rows:
+            out[table] = rows
+    return out
+
+
 @router.get("/diff/{table}")
 async def get_diff(
     table: str,
@@ -34,16 +62,9 @@ async def get_diff(
     to_commit: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    # Validate table name against allowed tables to prevent SQL injection
-    allowed = {"books", "series", "copies", "loans", "settings"}
-    if table not in allowed:
+    if table not in DIFFABLE_TABLES:
         raise HTTPException(
-            status_code=422, detail=f"Table must be one of: {', '.join(sorted(allowed))}"
+            status_code=422, detail=f"Table must be one of: {', '.join(DIFFABLE_TABLES)}"
         )
 
-    result = await db.execute(
-        text(f"SELECT * FROM dolt_diff_{table} WHERE from_commit = :from_c AND to_commit = :to_c"),
-        {"from_c": from_commit, "to_c": to_commit},
-    )
-    columns = list(result.keys())
-    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+    return await _table_diff(db, table, from_commit, to_commit)

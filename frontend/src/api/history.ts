@@ -7,10 +7,17 @@ export interface HistoryEntry {
   date: string
 }
 
+// One row from a dolt_diff_* table: to_*/from_* column pairs plus diff_type
+export type DiffRow = Record<string, unknown> & {
+  diff_type: 'added' | 'removed' | 'modified'
+}
+
 export const fetchHistory = (limit: number = 50) =>
   api.get<HistoryEntry[]>('/history', { params: { limit } }).then((r) => r.data)
 
-export const fetchDiff = (table: string, fromCommit: string, toCommit: string) =>
+export const fetchDiffAll = (fromCommit: string, toCommit: string) =>
   api
-    .get(`/history/diff/${table}`, { params: { from_commit: fromCommit, to_commit: toCommit } })
+    .get<Record<string, DiffRow[]>>('/history/diff-all', {
+      params: { from_commit: fromCommit, to_commit: toCommit },
+    })
     .then((r) => r.data)
