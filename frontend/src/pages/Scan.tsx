@@ -2,14 +2,14 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { ScanBarcode, BookPlus, LogOut, LogIn, ShieldAlert, Camera, Hand } from 'lucide-react'
+import { ScanBarcode, BookPlus, LogOut, LogIn, ShieldAlert, Camera, Hand, Search } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
 import { fetchCopyByBarcode } from '../api/copies'
 import { createLoan, returnByBarcode, fetchBorrowers } from '../api/loans'
 import { usePageTitle } from '../hooks/usePageTitle'
 
-type Mode = 'add' | 'checkout' | 'return'
+type Mode = 'add' | 'checkout' | 'return' | 'find'
 
 export default function Scan() {
   const { isAdmin } = useAuth()
@@ -60,6 +60,16 @@ export default function Scan() {
 
       try {
         const copy = await fetchCopyByBarcode(code)
+        if (mode === 'find') {
+          toast.success(
+            copy.location
+              ? `${copy.book_title ?? 'Unknown'} — lives at: ${copy.location}`
+              : `${copy.book_title ?? 'Unknown'} — no location recorded`,
+            { duration: 5000 },
+          )
+          navigate(`/books/${copy.book_id}`)
+          return
+        }
         setCheckoutCopyId(copy.id)
         setCheckoutBookTitle(copy.book_title ?? 'Unknown Book')
       } catch {
@@ -109,6 +119,9 @@ export default function Scan() {
         </button>
         <button className={modeCls('return')} onClick={() => setMode('return')}>
           <LogIn size={14} className="inline mr-1" /> Return
+        </button>
+        <button className={modeCls('find')} onClick={() => setMode('find')}>
+          <Search size={14} className="inline mr-1" /> Find
         </button>
       </div>
 
