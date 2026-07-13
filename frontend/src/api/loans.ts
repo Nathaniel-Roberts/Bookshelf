@@ -32,3 +32,6 @@ export const createLoan = (copyId: string, data: LoanCreate) =>
 
 export const returnLoan = (loanId: string) =>
   api.put<Loan>(`/loans/${loanId}/return`).then((r) => r.data)
+
+export const returnByBarcode = (barcode: string) =>
+  api.put<Loan>(`/loans/return-by-barcode/${encodeURIComponent(barcode)}`).then((r) => r.data)

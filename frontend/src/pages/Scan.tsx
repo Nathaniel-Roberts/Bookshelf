@@ -6,7 +6,7 @@ import { ScanBarcode, BookPlus, LogOut, LogIn, ShieldAlert, Camera, Hand } from 
 import { useAuth } from '../hooks/useAuth'
 import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
 import { fetchCopyByBarcode } from '../api/copies'
-import { createLoan, returnLoan, fetchBorrowers } from '../api/loans'
+import { createLoan, returnByBarcode, fetchBorrowers } from '../api/loans'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 type Mode = 'add' | 'checkout' | 'return'
@@ -35,9 +35,13 @@ export default function Scan() {
   })
 
   const returnMutation = useMutation({
-    mutationFn: returnLoan,
-    onSuccess: () => toast.success('Returned!'),
-    onError: () => toast.error('Return failed.'),
+    mutationFn: returnByBarcode,
+    onSuccess: (loan) => toast.success(`Returned: ${loan.book_title ?? loan.barcode}`),
+    onError: (err) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Return failed.')
+    },
   })
 
   const handleScan = useCallback(
@@ -47,31 +51,15 @@ export default function Scan() {
         return
       }
 
+      if (mode === 'return') {
+        returnMutation.mutate(code)
+        return
+      }
+
       try {
         const copy = await fetchCopyByBarcode(code)
-        if (mode === 'checkout') {
-          setCheckoutCopyId(copy.id)
-          setCheckoutBookTitle(copy.book_title ?? 'Unknown Book')
-        } else if (mode === 'return') {
-          // find active loan and return it — the API handles returning by copy
-          // We need the loan id; for quick return we use the copy's current loan
-          // The backend should support returning by copy. We'll use a workaround:
-          // fetch active loans or use a direct endpoint. For now use copy info.
-          if (!copy.is_on_loan) {
-            toast.error('This copy is not on loan.')
-            return
-          }
-          // Return by creating a return via the loans API
-          // We need the loan ID. Let's look it up from active loans.
-          const { fetchActiveLoans } = await import('../api/loans')
-          const loans = await fetchActiveLoans()
-          const loan = loans.find((l) => l.copy_id === copy.id)
-          if (loan) {
-            returnMutation.mutate(loan.id)
-          } else {
-            toast.error('No active loan found for this copy.')
-          }
-        }
+        setCheckoutCopyId(copy.id)
+        setCheckoutBookTitle(copy.book_title ?? 'Unknown Book')
       } catch {
         toast.error('Copy not found for this barcode.')
       }

@@ -94,6 +94,31 @@ async def create_loan(
     return _loan_to_response(loan)
 
 
+@router.put("/return-by-barcode/{barcode}", response_model=LoanResponse)
+async def return_by_barcode(
+    barcode: str,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Quick return for the scanner: one round trip from copy barcode to
+    returned loan."""
+    result = await db.execute(
+        select(Loan)
+        .join(Copy, Loan.copy_id == Copy.id)
+        .where(Copy.barcode == barcode, Loan.returned_date.is_(None))
+        .options(selectinload(Loan.copy).selectinload(Copy.book))
+    )
+    loan = result.scalar_one_or_none()
+    if not loan:
+        raise HTTPException(status_code=404, detail="No active loan for this barcode")
+
+    loan.returned_date = date.today()
+    await db.commit()
+    await db.refresh(loan)
+    await dolt_commit(db, f"Return {loan.copy.barcode} from {loan.borrower_name}")
+    return _loan_to_response(loan)
+
+
 @router.put("/{loan_id}/return", response_model=LoanResponse)
 async def return_loan(
     loan_id: str,

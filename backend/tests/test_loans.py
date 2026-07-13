@@ -45,6 +45,29 @@ async def test_loan_missing_copy_404(client, admin_headers):
     assert resp.status_code == 404
 
 
+async def test_return_by_barcode(client, admin_headers, sample_copy):
+    # No active loan yet
+    resp = await client.put(
+        f"/api/loans/return-by-barcode/{sample_copy['barcode']}", headers=admin_headers
+    )
+    assert resp.status_code == 404
+
+    await client.post(
+        f"/api/loans/copy/{sample_copy['id']}",
+        json={"borrower_name": "Sam"},
+        headers=admin_headers,
+    )
+    resp = await client.put(
+        f"/api/loans/return-by-barcode/{sample_copy['barcode']}", headers=admin_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["returned_date"] is not None
+
+    # Unknown barcode
+    resp = await client.put("/api/loans/return-by-barcode/NOPE", headers=admin_headers)
+    assert resp.status_code == 404
+
+
 async def test_borrowers_list(client, admin_headers, sample_copy):
     await client.post(
         f"/api/loans/copy/{sample_copy['id']}",
