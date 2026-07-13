@@ -12,6 +12,7 @@ import History from './pages/History'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Locations from './pages/Locations'
+import BorrowerDetail from './pages/BorrowerDetail'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/series/:id" element={<SeriesDetail />} />
           <Route path="/loans" element={<Loans />} />
           <Route path="/locations" element={<Locations />} />
+          <Route path="/borrowers/:name" element={<BorrowerDetail />} />
           <Route path="/scan" element={<Scan />} />
           <Route path="/history" element={<History />} />
           <Route path="/dashboard" element={<Dashboard />} />

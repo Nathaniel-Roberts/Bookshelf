@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -43,12 +43,18 @@ async def list_active_loans(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/history", response_model=list[LoanResponse])
-async def loan_history(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+async def loan_history(
+    db: AsyncSession = Depends(get_db),
+    borrower: str | None = Query(None),
+):
+    query = (
         select(Loan)
         .options(selectinload(Loan.copy).selectinload(Copy.book))
         .order_by(Loan.borrowed_date.desc())
     )
+    if borrower:
+        query = query.where(Loan.borrower_name == borrower)
+    result = await db.execute(query)
     return [_loan_to_response(loan) for loan in result.scalars().all()]
 
 
@@ -56,6 +62,37 @@ async def loan_history(db: AsyncSession = Depends(get_db)):
 async def list_borrowers(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Loan.borrower_name).distinct().order_by(Loan.borrower_name))
     return [row[0] for row in result.all()]
+
+
+@router.get("/borrowers/stats")
+async def borrower_stats(db: AsyncSession = Depends(get_db)):
+    """Per-borrower summary: current loans, lifetime loans, and how long
+    they typically keep a book."""
+    result = await db.execute(select(Loan))
+    stats: dict[str, dict] = {}
+    for loan in result.scalars().all():
+        entry = stats.setdefault(
+            loan.borrower_name, {"active_count": 0, "total_count": 0, "durations": []}
+        )
+        entry["total_count"] += 1
+        if loan.returned_date is None:
+            entry["active_count"] += 1
+        else:
+            entry["durations"].append((loan.returned_date - loan.borrowed_date).days)
+
+    return [
+        {
+            "name": name,
+            "active_count": entry["active_count"],
+            "total_count": entry["total_count"],
+            "average_days": (
+                round(sum(entry["durations"]) / len(entry["durations"]), 1)
+                if entry["durations"]
+                else None
+            ),
+        }
+        for name, entry in sorted(stats.items())
+    ]
 
 
 @router.post("/copy/{copy_id}", response_model=LoanResponse, status_code=201)

@@ -1,12 +1,19 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { BookCheck, RotateCcw, Clock, History } from 'lucide-react'
+import { BookCheck, RotateCcw, Clock, History, Users, ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { fetchActiveLoans, fetchLoanHistory, returnLoan, type Loan } from '../api/loans'
+import {
+  fetchActiveLoans,
+  fetchLoanHistory,
+  fetchBorrowerStats,
+  returnLoan,
+  type Loan,
+} from '../api/loans'
 import { usePageTitle } from '../hooks/usePageTitle'
 
-type Tab = 'active' | 'history'
+type Tab = 'active' | 'history' | 'borrowers'
 
 export default function Loans() {
   usePageTitle('Loans')
@@ -21,8 +28,14 @@ export default function Loans() {
 
   const { data: history, isLoading: loadingHistory } = useQuery({
     queryKey: ['loans', 'history'],
-    queryFn: fetchLoanHistory,
+    queryFn: () => fetchLoanHistory(),
     enabled: tab === 'history',
+  })
+
+  const { data: borrowers, isLoading: loadingBorrowers } = useQuery({
+    queryKey: ['loans', 'borrower-stats'],
+    queryFn: fetchBorrowerStats,
+    enabled: tab === 'borrowers',
   })
 
   const returnMutation = useMutation({
@@ -101,6 +114,9 @@ export default function Loans() {
         <button className={tabCls('history')} onClick={() => setTab('history')}>
           <History size={16} className="inline mr-1" /> History
         </button>
+        <button className={tabCls('borrowers')} onClick={() => setTab('borrowers')}>
+          <Users size={16} className="inline mr-1" /> Borrowers
+        </button>
       </div>
 
       {tab === 'active' && (
@@ -116,6 +132,32 @@ export default function Loans() {
           {loadingHistory && <p className="text-subtext0">Loading...</p>}
           {history?.map((loan) => <LoanRow key={loan.id} loan={loan} showReturned />)}
           {history?.length === 0 && <p className="text-subtext0 text-center py-8">No loan history.</p>}
+        </div>
+      )}
+
+      {tab === 'borrowers' && (
+        <div className="space-y-2">
+          {loadingBorrowers && <p className="text-subtext0">Loading...</p>}
+          {borrowers?.map((b) => (
+            <Link
+              key={b.name}
+              to={`/borrowers/${encodeURIComponent(b.name)}`}
+              className="bg-surface0 rounded-lg p-4 flex items-center gap-3 hover:bg-surface1 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-text font-medium truncate">{b.name}</p>
+                <p className="text-xs text-subtext0">
+                  {b.active_count > 0 ? `${b.active_count} out now · ` : ''}
+                  {b.total_count} loan{b.total_count === 1 ? '' : 's'} total
+                  {b.average_days !== null ? ` · keeps books ~${b.average_days} days` : ''}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-overlay0 shrink-0" />
+            </Link>
+          ))}
+          {borrowers?.length === 0 && (
+            <p className="text-subtext0 text-center py-8">No borrowers yet.</p>
+          )}
         </div>
       )}
     </div>

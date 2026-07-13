@@ -24,11 +24,23 @@ export interface LoanCreate {
 export const fetchActiveLoans = () =>
   api.get<Loan[]>('/loans').then((r) => r.data)
 
-export const fetchLoanHistory = () =>
-  api.get<Loan[]>('/loans/history').then((r) => r.data)
+export const fetchLoanHistory = (borrower?: string) =>
+  api
+    .get<Loan[]>('/loans/history', { params: borrower ? { borrower } : undefined })
+    .then((r) => r.data)
 
 export const fetchBorrowers = () =>
   api.get<string[]>('/loans/borrowers').then((r) => r.data)
+
+export interface BorrowerStats {
+  name: string
+  active_count: number
+  total_count: number
+  average_days: number | null
+}
+
+export const fetchBorrowerStats = () =>
+  api.get<BorrowerStats[]>('/loans/borrowers/stats').then((r) => r.data)
 
 export const createLoan = (copyId: string, data: LoanCreate) =>
   api.post<Loan>(`/loans/copy/${copyId}`, data).then((r) => r.data)

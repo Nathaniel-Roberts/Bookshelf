@@ -101,3 +101,30 @@ async def test_borrowers_list(client, admin_headers, sample_copy):
     )
     resp = await client.get("/api/loans/borrowers")
     assert resp.json() == ["Sam"]
+
+
+async def test_borrower_stats_and_history_filter(client, admin_headers, sample_copy):
+    # Sam borrows and returns (5 days), then Frodo borrows and keeps it
+    resp = await client.post(
+        f"/api/loans/copy/{sample_copy['id']}",
+        json={"borrower_name": "Sam", "borrowed_date": "2026-07-01"},
+        headers=admin_headers,
+    )
+    loan_id = resp.json()["id"]
+    await client.put(f"/api/loans/{loan_id}/return", headers=admin_headers)
+    await client.post(
+        f"/api/loans/copy/{sample_copy['id']}",
+        json={"borrower_name": "Frodo"},
+        headers=admin_headers,
+    )
+
+    resp = await client.get("/api/loans/borrowers/stats")
+    stats = {s["name"]: s for s in resp.json()}
+    assert stats["Frodo"]["active_count"] == 1
+    assert stats["Frodo"]["average_days"] is None
+    assert stats["Sam"]["total_count"] == 1
+    assert stats["Sam"]["active_count"] == 0
+    assert stats["Sam"]["average_days"] is not None
+
+    resp = await client.get("/api/loans/history", params={"borrower": "Frodo"})
+    assert [loan["borrower_name"] for loan in resp.json()] == ["Frodo"]
