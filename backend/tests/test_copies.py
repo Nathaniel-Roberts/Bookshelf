@@ -51,6 +51,25 @@ async def test_copy_uses_default_barcode_format_setting(client, admin_headers, s
     assert resp.json()["barcode_format"] == "code128"
 
 
+async def test_copies_grouped_by_location(client, admin_headers, sample_book):
+    for location in ("Study", "Study", "Bedroom", None):
+        await client.post(
+            f"/api/copies/book/{sample_book['id']}",
+            json={"location": location} if location else {},
+            headers=admin_headers,
+        )
+
+    resp = await client.get("/api/copies/locations")
+    assert resp.status_code == 200
+    groups = resp.json()
+    assert [(g["location"], len(g["copies"])) for g in groups] == [
+        ("Bedroom", 1),
+        ("Study", 2),
+        (None, 1),
+    ]
+    assert groups[0]["copies"][0]["book_title"] == "The Hobbit"
+
+
 async def test_copy_for_missing_book_404(client, admin_headers):
     resp = await client.post("/api/copies/book/nope", json={}, headers=admin_headers)
     assert resp.status_code == 404

@@ -44,3 +44,11 @@ export const deleteCopy = (id: string) => api.delete(`/copies/${id}`)
 
 export const getBarcodeUrl = (copyId: string, format: string = 'code128') =>
   `/api/copies/${copyId}/barcode?format=${format}`
+
+export interface LocationGroup {
+  location: string | null
+  copies: Copy[]
+}
+
+export const fetchCopiesByLocation = () =>
+  api.get<LocationGroup[]>('/copies/locations').then((r) => r.data)

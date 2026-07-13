@@ -43,6 +43,24 @@ def _copy_to_response(copy: Copy) -> CopyResponse:
     )
 
 
+@router.get("/locations")
+async def copies_by_location(db: AsyncSession = Depends(get_db)):
+    """All copies grouped by their recorded location; unset locations are
+    grouped last under null."""
+    result = await db.execute(
+        select(Copy)
+        .options(selectinload(Copy.book), selectinload(Copy.loans))
+        .order_by(Copy.location, Copy.created_at)
+    )
+    groups: dict[str | None, list[CopyResponse]] = {}
+    for copy in result.scalars().all():
+        groups.setdefault(copy.location, []).append(_copy_to_response(copy))
+
+    named = sorted((loc, copies) for loc, copies in groups.items() if loc is not None)
+    ordered = named + ([(None, groups[None])] if None in groups else [])
+    return [{"location": loc, "copies": copies} for loc, copies in ordered]
+
+
 @router.get("/by-barcode/{barcode}", response_model=CopyResponse)
 async def get_copy_by_barcode(barcode: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(

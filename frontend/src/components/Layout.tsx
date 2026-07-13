@@ -10,6 +10,7 @@ import {
   Settings,
   Lock,
   Unlock,
+  MapPin,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useLibraryName } from '../hooks/usePageTitle'
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/', label: 'Browse', icon: BookOpen, adminOnly: false },
   { to: '/series', label: 'Series', icon: Library, adminOnly: false },
   { to: '/loans', label: 'Loans', icon: HandCoins, adminOnly: false },
+  { to: '/locations', label: 'Shelves', icon: MapPin, adminOnly: false },
   { to: '/scan', label: 'Scan', icon: ScanBarcode, adminOnly: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
   { to: '/history', label: 'History', icon: Clock, adminOnly: false },
