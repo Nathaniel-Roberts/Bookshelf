@@ -12,23 +12,17 @@ A self-hosted personal book collection manager. Catalog physical books via ISBN 
 
 ## Deploy (no clone needed)
 
-On your server, create a directory and download three files:
+On your server, create a directory and download one file:
 
 ```bash
 mkdir bookshelf && cd bookshelf
 
-# Download the required files
 curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/docker-compose.prod.yml
-curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/dolt/init.sql
-curl -LO https://raw.githubusercontent.com/Nathaniel-Roberts/Bookshelf/main/nginx/default.conf
-mv default.conf nginx.conf
 
 # Create your .env
 cat > .env << 'EOF'
 ADMIN_PASSWORD=your-secure-password
 SECRET_KEY=your-random-secret-key
-GOOGLE_BOOKS_API_KEY=
-LIBRARY_NAME=Our Bookshelf
 HOST_PORT=80
 EOF
 
@@ -36,7 +30,9 @@ EOF
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Open `http://your-server` in a browser.
+Open `http://your-server` in a browser (or `http://your-server:8484` if you left `HOST_PORT` unset).
+
+If the app is reachable beyond your home network, put a TLS-terminating reverse proxy (Caddy, Traefik, nginx with certbot) in front of it — the admin password is otherwise sent in plain HTTP.
 
 ## Quick Start (from source)
 
@@ -52,11 +48,13 @@ docker compose up -d
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ADMIN_PASSWORD` | Yes | `changeme` | Password for admin mode |
+| `ADMIN_PASSWORD` | Yes | — | Password for admin mode. The app warns at startup if unset |
 | `SECRET_KEY` | Yes | auto-generated | JWT signing key. Set for persistent sessions across restarts |
 | `GOOGLE_BOOKS_API_KEY` | No | — | Enables Google Books as fallback ISBN source |
 | `LIBRARY_NAME` | No | `Our Bookshelf` | Display name for your collection |
-| `HOST_PORT` | No | `80` | Port to expose on the host |
+| `HOST_PORT` | No | `8484` | Port to expose on the host |
+| `DB_PASSWORD` | No | `bookshelf` | App database password (internal network only; applied on first start) |
+| `DB_ROOT_PASSWORD` | No | `bookshelf` | DoltDB root password (applied on first start) |
 
 ## Google Books API Setup (Optional)
 
@@ -69,24 +67,30 @@ docker compose up -d
 ## Architecture
 
 ```
-nginx (port 80) → frontend (React/Vite) + backend (FastAPI)
-                                              ↓
-                                         DoltDB (MySQL + version control)
+frontend container (nginx: static React app + /api proxy)
+                          ↓
+               backend (FastAPI, port 8000)
+                          ↓
+             DoltDB (MySQL + version control)
 ```
 
-- **Frontend:** React 18, Vite, TypeScript, Tailwind CSS, TanStack Query
+- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS, TanStack Query; served by nginx which also proxies `/api` (single entry point, no CORS)
 - **Backend:** Python FastAPI, SQLAlchemy (async), asyncmy
 - **Database:** DoltDB — MySQL-compatible with built-in version control
-- **Proxy:** Nginx — single entry point, no CORS
 - **Images:** Published to `ghcr.io/nathaniel-roberts/bookshelf` on every push to main
 
 ## Development
 
 ```bash
+# Database — the backend expects a MySQL-compatible server; easiest is Docker:
+docker compose up -d doltdb
+
 # Backend
 cd backend
-pip install -e .
-uvicorn app.main:app --reload
+pip install -e ".[dev]"
+DATABASE_HOST=127.0.0.1 uvicorn app.main:app --reload
+# (when running doltdb via compose without the port published, either add a
+# ports entry locally or run everything with: docker compose up)
 
 # Frontend
 cd frontend
@@ -94,7 +98,16 @@ npm install
 npm run dev
 ```
 
-The Vite dev server proxies `/api` requests to `localhost:8000`.
+The Vite dev server proxies `/api` requests to `localhost:8000`. Tables and seed settings are created automatically at backend startup (`app/init_db.py`).
+
+Tests and lint:
+
+```bash
+cd backend && ruff check app tests && pytest   # sqlite in-memory, no DB needed
+cd frontend && npx eslint src && npx tsc -b && npm test
+```
+
+Both run in CI on every pull request.
 
 ## Usage
 
@@ -105,3 +118,7 @@ The Vite dev server proxies `/api` requests to `localhost:8000`.
 5. Browse your collection, filter by genre/series/tags, and view stats on the Dashboard
 6. Check **History** to see a complete audit trail of all changes
 7. **Settings** — backup your library as JSON, configure preferences
+
+## License
+
+[MIT](LICENSE)
