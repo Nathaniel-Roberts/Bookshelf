@@ -21,6 +21,7 @@ from app.models.series import Series
 from app.models.setting import Setting
 from app.schemas.settings import SettingResponse, SettingUpdate
 from app.services.dolt import dolt_commit
+from app.services.notifications import check_overdue_and_notify
 
 router = APIRouter()
 
@@ -30,6 +31,7 @@ ALLOWED_SETTING_KEYS = {
     "library_name",
     "prefer_google_books",
     "default_barcode_format",
+    "overdue_webhook_url",
 }
 
 
@@ -106,6 +108,13 @@ async def create_backup(
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="bookshelf_backup_{timestamp}.json"'},
     )
+
+
+@router.post("/notify-overdue")
+async def notify_overdue_now(_: bool = Depends(require_admin)):
+    """Run the overdue check immediately — lets the webhook be tested from
+    Settings without waiting for the daily loop."""
+    return await check_overdue_and_notify()
 
 
 @router.post("/export-csv")

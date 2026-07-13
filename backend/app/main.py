@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -8,17 +9,35 @@ from app.database import engine
 from app.init_db import init_db
 from app.routers import auth, books, copies, history, loans, lookup, series, settings
 from app.services.covers import covers_path
+from app.services.notifications import check_overdue_and_notify
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
+OVERDUE_CHECK_INTERVAL = 24 * 3600
+
+
+async def _overdue_loop():
+    while True:
+        try:
+            result = await check_overdue_and_notify()
+            if result["sent"]:
+                logger.info("Sent overdue webhook for %s loan(s)", result["overdue"])
+        except Exception as exc:
+            logger.warning("Overdue check failed: %s", exc)
+        await asyncio.sleep(OVERDUE_CHECK_INTERVAL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    overdue_task = asyncio.create_task(_overdue_loop())
     yield
+    overdue_task.cancel()
     await engine.dispose()
 
 

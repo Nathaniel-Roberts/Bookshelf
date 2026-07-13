@@ -117,9 +117,11 @@ export default function Settings() {
   const isbnSource =
     edits.isbnSource ?? (saved('prefer_google_books') === 'true' ? 'google' : 'openlibrary')
   const barcodeFormat = edits.barcodeFormat ?? (saved('default_barcode_format') || 'code128')
+  const webhookUrl = edits.webhookUrl ?? saved('overdue_webhook_url')
   const setLibraryName = (v: string) => setEdits((e) => ({ ...e, libraryName: v }))
   const setIsbnSource = (v: string) => setEdits((e) => ({ ...e, isbnSource: v }))
   const setBarcodeFormat = (v: string) => setEdits((e) => ({ ...e, barcodeFormat: v }))
+  const setWebhookUrl = (v: string) => setEdits((e) => ({ ...e, webhookUrl: v }))
 
   const mutation = useMutation({
     mutationFn: (entries: Array<{ key: string; value: string }>) =>
@@ -137,7 +139,23 @@ export default function Settings() {
       { key: 'library_name', value: libraryName },
       { key: 'prefer_google_books', value: isbnSource === 'google' ? 'true' : 'false' },
       { key: 'default_barcode_format', value: barcodeFormat },
+      { key: 'overdue_webhook_url', value: webhookUrl.trim() },
     ])
+  }
+
+  async function testWebhook() {
+    try {
+      const { data } = await api.post('/settings/notify-overdue')
+      if (data.sent) {
+        toast.success(`Notification sent (${data.overdue} overdue).`)
+      } else if (data.overdue === 0) {
+        toast('Nothing overdue — no notification sent.', { icon: 'ℹ️' })
+      } else {
+        toast.error('Webhook not configured/saved, or the request failed.')
+      }
+    } catch {
+      toast.error('Test failed.')
+    }
   }
 
   if (!isAdmin) {
@@ -198,6 +216,23 @@ export default function Settings() {
             </button>
           </div>
         </div>
+
+        {/* Overdue webhook */}
+        <label className="block">
+          <span className="text-subtext1 text-sm">Overdue notification webhook (optional)</span>
+          <input
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder="https://ntfy.sh/your-topic"
+            className="mt-1 w-full bg-mantle border border-surface1 text-text rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-mauve"
+          />
+          <span className="text-xs text-subtext0 mt-1 flex items-center justify-between">
+            A daily plain-text digest of overdue loans is POSTed here.
+            <button onClick={testWebhook} className="text-mauve hover:underline shrink-0 ml-2">
+              Send test now
+            </button>
+          </span>
+        </label>
 
         <button
           onClick={saveAll}
