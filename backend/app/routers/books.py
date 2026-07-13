@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -127,6 +128,24 @@ async def book_facets(db: AsyncSession = Depends(get_db)):
         "tags": sorted(tags),
         "authors": sorted(authors),
     }
+
+
+@router.get("/by-isbn/{isbn}", response_model=BookResponse)
+async def get_book_by_isbn(isbn: str, db: AsyncSession = Depends(get_db)):
+    """Owned-book check for the scanner: 200 with the book or plain 404."""
+    normalized = re.sub(r"[-\s]", "", isbn.upper())
+    result = await db.execute(
+        select(Book)
+        .where((Book.isbn13 == normalized) | (Book.isbn10 == normalized))
+        .options(selectinload(Book.series), selectinload(Book.copies).selectinload(Copy.loans))
+    )
+    book = result.scalars().first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Not in your library")
+
+    total = len(book.copies)
+    on_loan = sum(1 for c in book.copies if any(loan.returned_date is None for loan in c.loans))
+    return _book_to_response(book, total, total - on_loan)
 
 
 @router.get("/stats")

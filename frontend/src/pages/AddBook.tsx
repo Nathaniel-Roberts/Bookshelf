@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { BookPlus, Search, Camera, Keyboard, Plus, X, ArrowRightLeft, Save, ShieldAlert, Loader2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
-import { lookupIsbn, createBook, type BookCreate } from '../api/books'
+import { lookupIsbn, createBook, fetchBookByIsbn, type Book, type BookCreate } from '../api/books'
 import { fetchAllSeries, createSeries } from '../api/series'
 import { createCopy } from '../api/copies'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -36,19 +36,31 @@ export default function AddBook() {
   const [newSeriesName, setNewSeriesName] = useState('')
   const [showNewSeries, setShowNewSeries] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
+  const [existing, setExisting] = useState<Book | null>(null)
 
   const { data: seriesList } = useQuery({ queryKey: ['series'], queryFn: fetchAllSeries })
 
   // Use a ref-based lookup so the scanner callback is never stale
   // Accepts optional sourceOverride to avoid stale state when switching sources
-  const doLookup = useRef<(val: string, sourceOverride?: string) => Promise<void>>(undefined)
+  const doLookup = useRef<
+    (val: string, sourceOverride?: string, skipOwnedCheck?: boolean) => Promise<void>
+  >(undefined)
 
-  doLookup.current = async (value: string, sourceOverride?: string) => {
+  doLookup.current = async (value: string, sourceOverride?: string, skipOwnedCheck?: boolean) => {
     const cleaned = value.trim().replace(/[-\s]/g, '')
     if (!cleaned) return
     setIsbn(cleaned)
     setLookingUp(true)
     try {
+      if (!skipOwnedCheck) {
+        try {
+          const owned = await fetchBookByIsbn(cleaned)
+          setExisting(owned)
+          return
+        } catch {
+          setExisting(null) // not owned — continue with the normal lookup
+        }
+      }
       const data = await lookupIsbn(cleaned, sourceOverride ?? source)
       setForm({
         isbn13: data.isbn13 ?? '',
@@ -116,6 +128,16 @@ export default function AddBook() {
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       toast.error(detail ?? 'Failed to save book.')
     },
+  })
+
+  const addCopyMutation = useMutation({
+    mutationFn: (bookId: string) => createCopy(bookId, {}),
+    onSuccess: (_copy, bookId) => {
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      toast.success('Copy added!')
+      navigate(cameFromScan ? '/scan' : `/books/${bookId}`)
+    },
+    onError: () => toast.error('Failed to add copy.'),
   })
 
   const createSeriesMutation = useMutation({
@@ -188,6 +210,44 @@ export default function AddBook() {
           <Keyboard size={16} className="inline mr-1" /> Manual Entry
         </button>
       </div>
+
+      {/* Already owned */}
+      {existing && (
+        <div className="bg-blue/10 border border-blue/40 rounded-lg p-4 space-y-3">
+          <p className="text-text">
+            Already in your library: <span className="font-semibold">{existing.title}</span>{' '}
+            <span className="text-subtext0">
+              ({existing.copy_count} {existing.copy_count === 1 ? 'copy' : 'copies'},{' '}
+              {existing.available_copies} available)
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate(`/books/${existing.id}`)}
+              className="px-3 py-2 bg-blue text-base rounded-lg text-sm font-medium"
+            >
+              View Book
+            </button>
+            <button
+              onClick={() => addCopyMutation.mutate(existing.id)}
+              disabled={addCopyMutation.isPending}
+              className="px-3 py-2 bg-green text-base rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              <Plus size={14} className="inline mr-1" />
+              Add Another Copy
+            </button>
+            <button
+              onClick={() => {
+                setExisting(null)
+                doLookup.current?.(isbn, undefined, true)
+              }}
+              className="px-3 py-2 bg-surface1 text-text rounded-lg text-sm"
+            >
+              Look Up Anyway
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Scan tab */}
       {tab === 'scan' && (

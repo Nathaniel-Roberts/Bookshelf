@@ -57,6 +57,9 @@ export const fetchBooks = (params?: Record<string, string>) =>
 export const fetchBook = (id: string) =>
   api.get<Book>(`/books/${id}`).then((r) => r.data)
 
+export const fetchBookByIsbn = (isbn: string) =>
+  api.get<Book>(`/books/by-isbn/${encodeURIComponent(isbn)}`).then((r) => r.data)
+
 export const createBook = (data: BookCreate) =>
   api.post<Book>('/books', data).then((r) => r.data)
 

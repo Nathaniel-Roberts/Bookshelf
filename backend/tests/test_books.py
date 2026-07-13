@@ -75,6 +75,19 @@ async def test_empty_strings_coerced_to_null(client, admin_headers):
     assert resp.status_code == 201
 
 
+async def test_lookup_by_isbn(client, admin_headers, sample_book):
+    # Exact, hyphenated, and 404 cases
+    resp = await client.get("/api/books/by-isbn/9780261103283")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == sample_book["id"]
+
+    resp = await client.get("/api/books/by-isbn/978-0-261-10328-3")
+    assert resp.status_code == 200
+
+    resp = await client.get("/api/books/by-isbn/9999999999999")
+    assert resp.status_code == 404
+
+
 async def test_search_and_filters(client, admin_headers, sample_book):
     await client.post(
         "/api/books",
