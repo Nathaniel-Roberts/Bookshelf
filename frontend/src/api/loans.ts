@@ -5,16 +5,19 @@ export interface Loan {
   copy_id: string
   borrower_name: string
   borrowed_date: string
+  due_date?: string
   returned_date?: string
   notes?: string
   created_at?: string
   book_title?: string
   barcode?: string
+  is_overdue: boolean
 }
 
 export interface LoanCreate {
   borrower_name: string
   borrowed_date?: string
+  due_date?: string
   notes?: string
 }
 

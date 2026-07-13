@@ -68,6 +68,31 @@ async def test_return_by_barcode(client, admin_headers, sample_copy):
     assert resp.status_code == 404
 
 
+async def test_due_dates_and_overdue(client, admin_headers, sample_copy):
+    # Overdue loan
+    resp = await client.post(
+        f"/api/loans/copy/{sample_copy['id']}",
+        json={"borrower_name": "Sam", "due_date": "2020-01-01"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 201
+    loan = resp.json()
+    assert loan["due_date"] == "2020-01-01"
+    assert loan["is_overdue"] is True
+
+    # Returning clears overdue
+    resp = await client.put(f"/api/loans/{loan['id']}/return", headers=admin_headers)
+    assert resp.json()["is_overdue"] is False
+
+    # Future due date isn't overdue; no due date isn't overdue
+    resp = await client.post(
+        f"/api/loans/copy/{sample_copy['id']}",
+        json={"borrower_name": "Frodo", "due_date": "2099-01-01"},
+        headers=admin_headers,
+    )
+    assert resp.json()["is_overdue"] is False
+
+
 async def test_borrowers_list(client, admin_headers, sample_copy):
     await client.post(
         f"/api/loans/copy/{sample_copy['id']}",

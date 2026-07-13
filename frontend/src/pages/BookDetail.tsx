@@ -349,6 +349,7 @@ function CopyCard({
 }) {
   const [loanForm, setLoanForm] = useState(false)
   const [borrower, setBorrower] = useState('')
+  const [dueDate, setDueDate] = useState('')
 
   const loanMut = useMutation({
     mutationFn: (data: LoanCreate) => createLoan(copy.id, data),
@@ -356,6 +357,7 @@ function CopyCard({
       toast.success('Loaned out')
       setLoanForm(false)
       setBorrower('')
+      setDueDate('')
       onMutated()
     },
     onError: () => toast.error('Failed to create loan'),
@@ -433,7 +435,7 @@ function CopyCard({
           ) : (
             <>
               {loanForm ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type="text"
                     placeholder="Borrower name"
@@ -442,10 +444,17 @@ function CopyCard({
                     className="rounded-lg bg-mantle px-3 py-1.5 text-xs text-text outline-none focus:ring-2 focus:ring-mauve"
                     autoFocus
                   />
+                  <input
+                    type="date"
+                    title="Due date (optional)"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="rounded-lg bg-mantle px-3 py-1.5 text-xs text-text outline-none focus:ring-2 focus:ring-mauve"
+                  />
                   <button
                     onClick={() =>
                       borrower.trim() &&
-                      loanMut.mutate({ borrower_name: borrower.trim() })
+                      loanMut.mutate({ borrower_name: borrower.trim(), due_date: dueDate || undefined })
                     }
                     disabled={loanMut.isPending || !borrower.trim()}
                     className="rounded-lg bg-peach px-3 py-1.5 text-xs font-semibold text-crust hover:opacity-90 disabled:opacity-50"
@@ -456,6 +465,7 @@ function CopyCard({
                     onClick={() => {
                       setLoanForm(false)
                       setBorrower('')
+                      setDueDate('')
                     }}
                     className="text-xs text-overlay1 hover:text-text"
                   >

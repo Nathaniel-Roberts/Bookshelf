@@ -63,6 +63,7 @@ SCHEMA_STATEMENTS = [
         copy_id CHAR(36) NOT NULL,
         borrower_name VARCHAR(255) NOT NULL,
         borrowed_date DATE NOT NULL,
+        due_date DATE,
         returned_date DATE,
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -91,6 +92,25 @@ SECONDARY_INDEXES = [
     ("idx_books_title", "books", "title"),
 ]
 
+# (table, column, definition) — columns added after the original schema
+# shipped; applied to existing databases via information_schema check.
+MIGRATED_COLUMNS = [
+    ("loans", "due_date", "DATE"),
+]
+
+
+async def _ensure_columns(conn):
+    for table, column, definition in MIGRATED_COLUMNS:
+        result = await conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column"
+            ),
+            {"table": table, "column": column},
+        )
+        if result.scalar() == 0:
+            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+
 
 async def _ensure_indexes(conn):
     for name, table, column in SECONDARY_INDEXES:
@@ -110,6 +130,7 @@ async def init_db():
     async with engine.begin() as conn:
         for statement in SCHEMA_STATEMENTS:
             await conn.execute(text(statement))
+        await _ensure_columns(conn)
         await _ensure_indexes(conn)
         # Dolt commit the schema
         await conn.execute(text("CALL DOLT_ADD('-A')"))

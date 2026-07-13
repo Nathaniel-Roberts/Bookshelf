@@ -19,17 +19,19 @@ export default function Scan() {
   const [checkoutCopyId, setCheckoutCopyId] = useState<string | null>(null)
   const [checkoutBookTitle, setCheckoutBookTitle] = useState('')
   const [borrowerName, setBorrowerName] = useState('')
+  const [dueDate, setDueDate] = useState('')
 
   usePageTitle('Scan')
   const { data: borrowers } = useQuery({ queryKey: ['borrowers'], queryFn: fetchBorrowers, enabled: isAdmin })
 
   const loanMutation = useMutation({
-    mutationFn: ({ copyId, borrower }: { copyId: string; borrower: string }) =>
-      createLoan(copyId, { borrower_name: borrower }),
+    mutationFn: ({ copyId, borrower, due }: { copyId: string; borrower: string; due?: string }) =>
+      createLoan(copyId, { borrower_name: borrower, due_date: due || undefined }),
     onSuccess: () => {
       toast.success('Checked out!')
       setCheckoutCopyId(null)
       setBorrowerName('')
+      setDueDate('')
     },
     onError: () => toast.error('Checkout failed.'),
   })
@@ -161,16 +163,28 @@ export default function Scan() {
             <datalist id="borrower-suggestions">
               {borrowers?.map((b) => <option key={b} value={b} />)}
             </datalist>
+            <label className="block">
+              <span className="text-subtext0 text-xs">Due date (optional)</span>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="mt-1 w-full bg-mantle border border-surface1 text-text rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-mauve"
+              />
+            </label>
             <div className="flex gap-2">
               <button
-                onClick={() => borrowerName && loanMutation.mutate({ copyId: checkoutCopyId, borrower: borrowerName })}
+                onClick={() =>
+                  borrowerName &&
+                  loanMutation.mutate({ copyId: checkoutCopyId, borrower: borrowerName, due: dueDate })
+                }
                 disabled={!borrowerName || loanMutation.isPending}
                 className="flex-1 py-2 bg-green text-base rounded-lg font-medium disabled:opacity-50"
               >
                 Confirm
               </button>
               <button
-                onClick={() => { setCheckoutCopyId(null); setBorrowerName('') }}
+                onClick={() => { setCheckoutCopyId(null); setBorrowerName(''); setDueDate('') }}
                 className="flex-1 py-2 bg-surface1 text-text rounded-lg font-medium"
               >
                 Cancel

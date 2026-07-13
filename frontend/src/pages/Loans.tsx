@@ -46,7 +46,11 @@ export default function Loans() {
 
   function LoanRow({ loan, showReturned }: { loan: Loan; showReturned?: boolean }) {
     return (
-      <div className="bg-surface0 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div
+        className={`bg-surface0 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${
+          loan.is_overdue ? 'border border-red/60' : ''
+        }`}
+      >
         <div className="flex-1 min-w-0">
           <p className="text-text font-medium truncate">{loan.book_title ?? 'Unknown Book'}</p>
           <p className="text-subtext0 text-sm">
@@ -54,6 +58,12 @@ export default function Loans() {
           </p>
           <div className="flex flex-wrap gap-3 mt-1 text-xs text-subtext1">
             <span className="flex items-center gap-1"><Clock size={12} /> {formatDate(loan.borrowed_date)}</span>
+            {loan.due_date && (
+              <span className={loan.is_overdue ? 'text-red font-semibold' : ''}>
+                Due: {formatDate(loan.due_date)}
+                {loan.is_overdue && ' (overdue)'}
+              </span>
+            )}
             {loan.barcode && <span>Barcode: {loan.barcode}</span>}
             {showReturned && loan.returned_date && (
               <span className="text-green">Returned: {formatDate(loan.returned_date)}</span>

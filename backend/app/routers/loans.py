@@ -22,6 +22,7 @@ def _loan_to_response(loan: Loan) -> LoanResponse:
         copy_id=loan.copy_id,
         borrower_name=loan.borrower_name,
         borrowed_date=loan.borrowed_date,
+        due_date=loan.due_date,
         returned_date=loan.returned_date,
         notes=loan.notes,
         created_at=loan.created_at,
@@ -80,6 +81,7 @@ async def create_loan(
         copy_id=copy_id,
         borrower_name=data.borrower_name,
         borrowed_date=data.borrowed_date or date.today(),
+        due_date=data.due_date,
         notes=data.notes,
     )
     db.add(loan)

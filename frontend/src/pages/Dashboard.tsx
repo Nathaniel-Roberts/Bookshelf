@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Link } from 'react-router-dom'
-import { BookOpen, Copy, BookCheck, Users, Library, TrendingUp } from 'lucide-react'
+import { BookOpen, Copy, BookCheck, Users, Library, TrendingUp, AlarmClock } from 'lucide-react'
 import { fetchBooks } from '../api/books'
 import { fetchActiveLoans } from '../api/loans'
 import { fetchAllSeries } from '../api/series'
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const totalBooks = books?.length ?? 0
   const totalCopies = books?.reduce((sum, b) => sum + b.copy_count, 0) ?? 0
   const onLoan = activeLoans?.length ?? 0
+  const overdue = activeLoans?.filter((l) => l.is_overdue).length ?? 0
   const uniqueAuthors = new Set(books?.flatMap((b) => b.authors ?? []) ?? []).size
   const totalSeries = series?.length ?? 0
 
@@ -42,6 +43,9 @@ export default function Dashboard() {
     { label: 'Books', value: totalBooks, icon: BookOpen, color: 'text-blue' },
     { label: 'Copies', value: totalCopies, icon: Copy, color: 'text-green' },
     { label: 'On Loan', value: onLoan, icon: BookCheck, color: 'text-peach' },
+    ...(overdue > 0
+      ? [{ label: 'Overdue', value: overdue, icon: AlarmClock, color: 'text-red' }]
+      : []),
     { label: 'Authors', value: uniqueAuthors, icon: Users, color: 'text-mauve' },
     { label: 'Series', value: totalSeries, icon: Library, color: 'text-yellow' },
   ]
@@ -132,12 +136,21 @@ export default function Dashboard() {
           <h2 className="text-text font-semibold mb-3">Currently on Loan</h2>
           <div className="space-y-2">
             {activeLoans.map((loan) => (
-              <div key={loan.id} className="flex items-center justify-between p-2 hover:bg-surface1 rounded-lg transition-colors">
+              <div
+                key={loan.id}
+                className={`flex items-center justify-between p-2 hover:bg-surface1 rounded-lg transition-colors ${
+                  loan.is_overdue ? 'border border-red/60' : ''
+                }`}
+              >
                 <div>
                   <p className="text-text text-sm font-medium">{loan.book_title ?? 'Unknown'}</p>
                   <p className="text-subtext0 text-xs">to {loan.borrower_name}</p>
                 </div>
-                <span className="text-subtext1 text-xs">{new Date(loan.borrowed_date).toLocaleDateString()}</span>
+                <span className={`text-xs ${loan.is_overdue ? 'text-red font-semibold' : 'text-subtext1'}`}>
+                  {loan.is_overdue && loan.due_date
+                    ? `overdue since ${new Date(loan.due_date).toLocaleDateString()}`
+                    : new Date(loan.borrowed_date).toLocaleDateString()}
+                </span>
               </div>
             ))}
           </div>
