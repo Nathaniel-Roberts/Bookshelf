@@ -1,11 +1,28 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload } from 'lucide-react'
+import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload, FileSpreadsheet } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchSettings, updateSetting } from '../api/settings'
 import api from '../api/client'
 import { usePageTitle } from '../hooks/usePageTitle'
+
+async function downloadFrom(path: string, fallbackName: string, successMessage: string) {
+  try {
+    const resp = await api.post(path, null, { responseType: 'blob' })
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    const disposition = resp.headers['content-disposition'] ?? ''
+    const match = disposition.match(/filename="?([^"]+)"?/)
+    a.download = match?.[1] ?? fallbackName
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(successMessage)
+  } catch {
+    toast.error('Download failed.')
+  }
+}
 
 export default function Settings() {
   usePageTitle('Settings')
@@ -120,27 +137,18 @@ export default function Settings() {
       {/* Backup */}
       <div className="bg-surface0 rounded-lg p-4 space-y-3">
         <h2 className="text-lg font-semibold text-text">Backup</h2>
-        <p className="text-sm text-subtext0">Download a full JSON export of your library — books, copies, loans, series, and settings.</p>
+        <p className="text-sm text-subtext0">Download a full JSON export of your library — books, copies, loans, series, and settings. The CSV export is a books spreadsheet for insurance lists and sharing.</p>
         <button
-          onClick={async () => {
-            try {
-              const resp = await api.post('/settings/backup', null, { responseType: 'blob' })
-              const url = URL.createObjectURL(resp.data)
-              const a = document.createElement('a')
-              a.href = url
-              const disposition = resp.headers['content-disposition'] ?? ''
-              const match = disposition.match(/filename="?([^"]+)"?/)
-              a.download = match?.[1] ?? 'bookshelf_backup.json'
-              a.click()
-              URL.revokeObjectURL(url)
-              toast.success('Backup downloaded!')
-            } catch {
-              toast.error('Failed to create backup.')
-            }
-          }}
+          onClick={() => downloadFrom('/settings/backup', 'bookshelf_backup.json', 'Backup downloaded!')}
           className="w-full py-3 bg-blue text-base rounded-lg font-bold flex items-center justify-center gap-2"
         >
           <Download size={18} /> Download Backup
+        </button>
+        <button
+          onClick={() => downloadFrom('/settings/export-csv', 'bookshelf_books.csv', 'CSV downloaded!')}
+          className="w-full py-3 bg-teal text-base rounded-lg font-bold flex items-center justify-center gap-2"
+        >
+          <FileSpreadsheet size={18} /> Export Books CSV
         </button>
 
         <p className="text-sm text-subtext0 pt-2">

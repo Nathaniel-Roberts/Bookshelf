@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
@@ -8,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.deps import require_admin
@@ -102,6 +105,73 @@ async def create_backup(
         content=content,
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="bookshelf_backup_{timestamp}.json"'},
+    )
+
+
+@router.post("/export-csv")
+async def export_csv(
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Spreadsheet-friendly export: one row per book with copy/value info."""
+    result = await db.execute(
+        select(Book).options(selectinload(Book.copies), selectinload(Book.series)).order_by(Book.title)
+    )
+    books = result.scalars().unique().all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "title",
+            "subtitle",
+            "authors",
+            "isbn13",
+            "isbn10",
+            "publisher",
+            "publish_date",
+            "series",
+            "series_position",
+            "genres",
+            "tags",
+            "rating",
+            "language",
+            "page_count",
+            "copies",
+            "locations",
+            "total_value",
+        ]
+    )
+    for book in books:
+        total_value = sum((c.acquisition_price or Decimal(0)) for c in book.copies)
+        locations = sorted({c.location for c in book.copies if c.location})
+        writer.writerow(
+            [
+                book.title,
+                book.subtitle or "",
+                "; ".join(book.authors or []),
+                book.isbn13 or "",
+                book.isbn10 or "",
+                book.publisher or "",
+                book.publish_date or "",
+                book.series.name if book.series else "",
+                book.series_position or "",
+                "; ".join(book.genres or []),
+                "; ".join(book.tags or []),
+                book.rating or "",
+                book.language or "",
+                book.page_count or "",
+                len(book.copies),
+                "; ".join(locations),
+                f"{total_value:.2f}" if total_value else "",
+            ]
+        )
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="bookshelf_books_{timestamp}.csv"'},
     )
 
 

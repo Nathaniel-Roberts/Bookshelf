@@ -33,6 +33,16 @@ async def test_backup_contains_data(client, admin_headers, sample_copy):
     assert backup["books"][0]["title"] == "The Hobbit"
 
 
+async def test_csv_export(client, admin_headers, sample_copy):
+    resp = await client.post("/api/settings/export-csv", headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    lines = resp.text.strip().splitlines()
+    assert lines[0].startswith("title,subtitle,authors,isbn13")
+    assert lines[1].startswith("The Hobbit,")
+    assert "J. R. R. Tolkien" in lines[1]
+
+
 async def test_backup_restore_roundtrip(client, admin_headers, sample_copy):
     # Loan the copy so every table has data, then export
     await client.post(
