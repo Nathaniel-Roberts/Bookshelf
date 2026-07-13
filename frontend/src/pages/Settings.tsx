@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload, FileSpreadsheet } from 'lucide-react'
+import { Settings as SettingsIcon, ShieldAlert, Save, Download, Upload, FileSpreadsheet, Tags } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchSettings, updateSetting } from '../api/settings'
 import api from '../api/client'
@@ -132,6 +133,17 @@ export default function Settings() {
         >
           <Save size={18} /> Save Settings
         </button>
+      </div>
+
+      {/* Tools */}
+      <div className="bg-surface0 rounded-lg p-4 space-y-3">
+        <h2 className="text-lg font-semibold text-text">Tools</h2>
+        <Link
+          to="/labels"
+          className="w-full py-3 bg-surface1 text-text rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-surface2 transition-colors"
+        >
+          <Tags size={18} /> Print Barcode Labels
+        </Link>
       </div>
 
       {/* Backup */}
