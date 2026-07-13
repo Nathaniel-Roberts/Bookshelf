@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback } from 'react'
-import api from '../api/client'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import api, { AUTH_EXPIRED_EVENT } from '../api/client'
 
 interface AuthContextType {
   isAdmin: boolean
@@ -34,6 +34,13 @@ export function useAuthState(): AuthContextType {
   const logout = useCallback(() => {
     localStorage.removeItem('admin_token')
     setIsAdmin(false)
+  }, [])
+
+  // The API client removes the token and fires this event on 401
+  useEffect(() => {
+    const onExpired = () => setIsAdmin(false)
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired)
   }, [])
 
   return { isAdmin, login, logout }

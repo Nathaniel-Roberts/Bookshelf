@@ -4,13 +4,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { BookPlus, Search, Camera, Keyboard, Plus, X, ArrowRightLeft, Save, ShieldAlert, Loader2 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useScanner } from '../hooks/useScanner'
+import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
 import { lookupIsbn, createBook, type BookCreate } from '../api/books'
 import { fetchAllSeries, createSeries } from '../api/series'
 import { createCopy } from '../api/copies'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 type Tab = 'scan' | 'manual'
+
+const emptyForm = (): BookCreate => ({
+  title: '',
+  authors: [],
+  genres: [],
+  tags: [],
+  metadata_source: 'manual',
+})
 
 export default function AddBook() {
   const { isAdmin } = useAuth()
@@ -42,10 +50,6 @@ export default function AddBook() {
     setLookingUp(true)
     try {
       const data = await lookupIsbn(cleaned, sourceOverride ?? source)
-      if (data.error) {
-        toast.error(data.error)
-        return
-      }
       setForm({
         isbn13: data.isbn13 ?? '',
         isbn10: data.isbn10 ?? '',
@@ -63,8 +67,10 @@ export default function AddBook() {
         metadata_source: data.metadata_source ?? source ?? '',
       })
       toast.success(`Metadata found: ${data.title}`)
-    } catch {
-      toast.error('ISBN lookup failed.')
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'ISBN lookup failed.')
     } finally {
       setLookingUp(false)
     }
@@ -83,6 +89,45 @@ export default function AddBook() {
   }, [])
 
   const { elementId, isScanning, error: scanError, start, stop } = useScanner({ onScan })
+  // USB/Bluetooth barcode scanners type the code rapidly and press Enter
+  useKeyboardScanner(onScan)
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: BookCreate) => {
+      const book = await createBook(data)
+      try {
+        await createCopy(book.id, {})
+      } catch {
+        toast.error('Book saved but failed to create copy.')
+      }
+      return book
+    },
+    onSuccess: (book) => {
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      toast.success('Book saved with first copy!')
+      if (cameFromScan) {
+        navigate('/scan')
+      } else {
+        navigate(`/books/${book.id}`)
+      }
+    },
+    onError: (err) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to save book.')
+    },
+  })
+
+  const createSeriesMutation = useMutation({
+    mutationFn: (name: string) => createSeries({ name }),
+    onSuccess: (s) => {
+      queryClient.invalidateQueries({ queryKey: ['series'] })
+      if (form) setForm({ ...form, series_id: s.id })
+      setShowNewSeries(false)
+      setNewSeriesName('')
+      toast.success('Series created!')
+    },
+  })
 
   if (!isAdmin) {
     return (
@@ -116,42 +161,6 @@ export default function AddBook() {
     setForm({ ...form, tags: (form.tags ?? []).filter((_, i) => i !== idx) })
   }
 
-  const saveMutation = useMutation({
-    mutationFn: async (data: BookCreate) => {
-      const book = await createBook(data)
-      try {
-        await createCopy(book.id, {})
-      } catch {
-        toast.error('Book saved but failed to create copy.')
-      }
-      return book
-    },
-    onSuccess: (book) => {
-      queryClient.invalidateQueries({ queryKey: ['books'] })
-      toast.success('Book saved with first copy!')
-      if (cameFromScan) {
-        navigate('/scan')
-      } else {
-        navigate(`/books/${book.id}`)
-      }
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail ?? 'Failed to save book.'
-      toast.error(msg)
-    },
-  })
-
-  const createSeriesMutation = useMutation({
-    mutationFn: (name: string) => createSeries({ name }),
-    onSuccess: (s) => {
-      queryClient.invalidateQueries({ queryKey: ['series'] })
-      if (form) setForm({ ...form, series_id: s.id })
-      setShowNewSeries(false)
-      setNewSeriesName('')
-      toast.success('Series created!')
-    },
-  })
-
   const tabCls = (t: Tab) =>
     `flex-1 py-2.5 text-center font-medium rounded-lg transition-colors ${
       tab === t ? 'bg-mauve text-base' : 'text-subtext0 hover:text-text'
@@ -168,7 +177,14 @@ export default function AddBook() {
         <button className={tabCls('scan')} onClick={() => setTab('scan')}>
           <Camera size={16} className="inline mr-1" /> Scan ISBN
         </button>
-        <button className={tabCls('manual')} onClick={() => setTab('manual')}>
+        <button
+          className={tabCls('manual')}
+          onClick={() => {
+            setTab('manual')
+            // Without a form the manual inputs are all dead
+            if (!form) setForm(emptyForm())
+          }}
+        >
           <Keyboard size={16} className="inline mr-1" /> Manual Entry
         </button>
       </div>

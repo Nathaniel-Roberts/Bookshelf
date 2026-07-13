@@ -67,3 +67,11 @@ export const deleteBook = (id: string) => api.delete(`/books/${id}`)
 
 export const lookupIsbn = (isbn: string, source?: string) =>
   api.get(`/lookup/isbn/${isbn}`, { params: source ? { source } : undefined }).then((r) => r.data)
+
+export interface BookFacets {
+  genres: string[]
+  tags: string[]
+  authors: string[]
+}
+
+export const fetchFacets = () => api.get<BookFacets>('/books/facets').then((r) => r.data)

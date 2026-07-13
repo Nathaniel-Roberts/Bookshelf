@@ -372,10 +372,10 @@ function CopyCard({
 
   const conditionColor: Record<string, string> = {
     new: 'text-green bg-green/15',
+    like_new: 'text-green bg-green/15',
     good: 'text-teal bg-teal/15',
     fair: 'text-yellow bg-yellow/15',
-    poor: 'text-peach bg-peach/15',
-    damaged: 'text-red bg-red/15',
+    poor: 'text-red bg-red/15',
   }
 
   return (
@@ -401,7 +401,7 @@ function CopyCard({
                   conditionColor[copy.condition.toLowerCase()] ?? 'text-overlay1 bg-surface1'
                 }`}
               >
-                {copy.condition}
+                {copy.condition.replace('_', ' ')}
               </span>
             )}
           </div>

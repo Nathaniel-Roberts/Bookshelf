@@ -9,7 +9,6 @@ import { fetchBooks, type Book } from '../api/books'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 export default function SeriesDetail() {
-  usePageTitle('Series')
   const { id } = useParams<{ id: string }>()
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -23,6 +22,8 @@ export default function SeriesDetail() {
     queryFn: () => fetchSeries(id!),
     enabled: !!id,
   })
+
+  usePageTitle(series?.name ?? 'Series')
 
   const { data: books } = useQuery({
     queryKey: ['books', { series_id: id }],

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Settings as SettingsIcon, ShieldAlert, Save, Download } from 'lucide-react'
@@ -18,31 +18,35 @@ export default function Settings() {
     enabled: isAdmin,
   })
 
-  const [libraryName, setLibraryName] = useState('')
-  const [isbnSource, setIsbnSource] = useState('openlibrary')
-  const [barcodeFormat, setBarcodeFormat] = useState('code128')
-
-  useEffect(() => {
-    if (!settings) return
-    const get = (key: string) => settings.find((s) => s.key === key)?.value ?? ''
-    setLibraryName(get('library_name') || 'My Library')
-    setIsbnSource(get('prefer_google_books') === 'true' ? 'google' : 'openlibrary')
-    setBarcodeFormat(get('default_barcode_format') || 'code128')
-  }, [settings])
+  // Saved values are derived from the query; edits overlay them until saved,
+  // avoiding setState-in-effect.
+  const [edits, setEdits] = useState<Record<string, string>>({})
+  const saved = (key: string) => settings?.find((s) => s.key === key)?.value ?? ''
+  const libraryName = edits.libraryName ?? (saved('library_name') || 'My Library')
+  const isbnSource =
+    edits.isbnSource ?? (saved('prefer_google_books') === 'true' ? 'google' : 'openlibrary')
+  const barcodeFormat = edits.barcodeFormat ?? (saved('default_barcode_format') || 'code128')
+  const setLibraryName = (v: string) => setEdits((e) => ({ ...e, libraryName: v }))
+  const setIsbnSource = (v: string) => setEdits((e) => ({ ...e, isbnSource: v }))
+  const setBarcodeFormat = (v: string) => setEdits((e) => ({ ...e, barcodeFormat: v }))
 
   const mutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) => updateSetting(key, value),
+    mutationFn: (entries: Array<{ key: string; value: string }>) =>
+      Promise.all(entries.map(({ key, value }) => updateSetting(key, value))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
-      toast.success('Setting saved!')
+      setEdits({})
+      toast.success('Settings saved!')
     },
-    onError: () => toast.error('Failed to save setting.'),
+    onError: () => toast.error('Failed to save settings.'),
   })
 
   function saveAll() {
-    mutation.mutate({ key: 'library_name', value: libraryName })
-    mutation.mutate({ key: 'prefer_google_books', value: isbnSource === 'google' ? 'true' : 'false' })
-    mutation.mutate({ key: 'default_barcode_format', value: barcodeFormat })
+    mutation.mutate([
+      { key: 'library_name', value: libraryName },
+      { key: 'prefer_google_books', value: isbnSource === 'google' ? 'true' : 'false' },
+      { key: 'default_barcode_format', value: barcodeFormat },
+    ])
   }
 
   if (!isAdmin) {

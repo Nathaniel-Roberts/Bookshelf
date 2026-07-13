@@ -11,7 +11,7 @@ import {
   ArrowUpNarrowWide,
   ArrowDownNarrowWide,
 } from 'lucide-react'
-import { fetchBooks, type Book } from '../api/books'
+import { fetchBooks, fetchFacets, type Book } from '../api/books'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { fetchAllSeries } from '../api/series'
 import BookCard from '../components/BookCard'
@@ -54,7 +54,7 @@ export default function Browse() {
     if (tag) p.tag = tag
     if (seriesId) p.series_id = seriesId
     if (availability !== 'all') p.availability = availability
-    if (favouritesOnly) p.favourites = 'true'
+    if (favouritesOnly) p.is_favourite = 'true'
     p.sort = sort
     p.order = order
     return p
@@ -71,23 +71,14 @@ export default function Browse() {
     queryFn: fetchAllSeries,
   })
 
-  // Fetch all books (unfiltered) to derive complete genre/tag lists
-  const { data: allBooks } = useQuery({
-    queryKey: ['books'],
-    queryFn: () => fetchBooks(),
+  // Lightweight facets endpoint instead of refetching the whole collection
+  const { data: facets } = useQuery({
+    queryKey: ['facets'],
+    queryFn: fetchFacets,
+    staleTime: 5 * 60_000,
   })
-
-  const { genres, tags } = useMemo(() => {
-    const source = allBooks ?? books
-    if (!source) return { genres: [] as string[], tags: [] as string[] }
-    const gs = new Set<string>()
-    const ts = new Set<string>()
-    source.forEach((b) => {
-      b.genres?.forEach((g) => gs.add(g))
-      b.tags?.forEach((t) => ts.add(t))
-    })
-    return { genres: [...gs].sort(), tags: [...ts].sort() }
-  }, [allBooks, books])
+  const genres = facets?.genres ?? []
+  const tags = facets?.tags ?? []
 
   return (
     <div className="flex flex-col gap-4">

@@ -11,6 +11,7 @@ import Scan from './pages/Scan'
 import History from './pages/History'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
+import NotFound from './pages/NotFound'
 
 export default function App() {
   const auth = useAuthState()
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/history" element={<History />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </AuthContext.Provider>

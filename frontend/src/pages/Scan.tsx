@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ScanBarcode, BookPlus, LogOut, LogIn, ShieldAlert, Camera, Hand } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useScanner } from '../hooks/useScanner'
+import { useScanner, useKeyboardScanner } from '../hooks/useScanner'
 import { fetchCopyByBarcode } from '../api/copies'
 import { createLoan, returnLoan, fetchBorrowers } from '../api/loans'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -80,6 +80,8 @@ export default function Scan() {
   )
 
   const { elementId, isScanning, error: scanError, start, stop } = useScanner({ onScan: handleScan })
+  // USB/Bluetooth barcode scanners type the code rapidly and press Enter
+  useKeyboardScanner(handleScan)
 
   function handleManualSubmit() {
     if (!manualInput.trim()) return
