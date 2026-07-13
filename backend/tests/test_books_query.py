@@ -74,6 +74,14 @@ async def test_stats_collection_value(client, admin_headers, sample_book):
     assert resp.json() == {"total_value": 19.75, "priced_copies": 2}
 
 
+async def test_author_filter(client, library):
+    resp = await client.get("/api/books", params={"author": "Alice Author"})
+    assert sorted(b["title"] for b in resp.json()) == ["Available Book", "Copyless Book"]
+
+    resp = await client.get("/api/books", params={"author": "Nobody"})
+    assert resp.json() == []
+
+
 async def test_facets(client, library):
     resp = await client.get("/api/books/facets")
     assert resp.status_code == 200

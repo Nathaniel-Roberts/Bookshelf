@@ -38,6 +38,7 @@ async def list_books(
     search: str | None = Query(None),
     genre: str | None = Query(None),
     tag: str | None = Query(None),
+    author: str | None = Query(None),
     series_id: str | None = Query(None),
     is_favourite: bool | None = Query(None),
     availability: str | None = Query(None, pattern="^(all|available|on_loan)$"),
@@ -81,6 +82,10 @@ async def list_books(
         query = query.where(Book.genres.like(f'%"{_escape_like(genre)}"%', escape="\\"))
     if tag:
         query = query.where(Book.tags.like(f'%"{_escape_like(tag)}"%', escape="\\"))
+    if author:
+        query = query.where(
+            func.cast(Book.authors, SAString).like(f'%"{_escape_like(author)}"%', escape="\\")
+        )
     if series_id:
         query = query.where(Book.series_id == series_id)
     if is_favourite is not None:

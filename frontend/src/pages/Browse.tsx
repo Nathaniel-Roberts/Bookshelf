@@ -36,6 +36,7 @@ export default function Browse() {
   const [search, setSearch] = useState('')
   const [genre, setGenre] = useState('')
   const [tag, setTag] = useState('')
+  const [author, setAuthor] = useState('')
   const [seriesId, setSeriesId] = useState('')
   const [availability, setAvailability] = useState<Availability>('all')
   const [favouritesOnly, setFavouritesOnly] = useState(false)
@@ -52,13 +53,14 @@ export default function Browse() {
     if (debouncedSearch) p.search = debouncedSearch
     if (genre) p.genre = genre
     if (tag) p.tag = tag
+    if (author) p.author = author
     if (seriesId) p.series_id = seriesId
     if (availability !== 'all') p.availability = availability
     if (favouritesOnly) p.is_favourite = 'true'
     p.sort = sort
     p.order = order
     return p
-  }, [debouncedSearch, genre, tag, seriesId, availability, favouritesOnly, sort, order])
+  }, [debouncedSearch, genre, tag, author, seriesId, availability, favouritesOnly, sort, order])
 
   const { data: books, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['books', filterParams],
@@ -79,6 +81,7 @@ export default function Browse() {
   })
   const genres = facets?.genres ?? []
   const tags = facets?.tags ?? []
+  const authors = facets?.authors ?? []
 
   return (
     <div className="flex flex-col gap-4">
@@ -121,6 +124,14 @@ export default function Browse() {
             {tags.map((t) => (
               <option key={t} value={t}>
                 {t}
+              </option>
+            ))}
+          </Select>
+
+          <Select value={author} onChange={setAuthor} placeholder="Author">
+            {authors.map((a) => (
+              <option key={a} value={a}>
+                {a}
               </option>
             ))}
           </Select>
